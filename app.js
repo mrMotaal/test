@@ -1341,7 +1341,9 @@ const InfiniteWhiteboard = {
   isDrawing: false,
   isPenDrawing: false,
   isPanning: false,
-  activeTouches: new Map(), // pointerId -> { clientX, clientY, prevX, prevY }
+  isSingleTouchPanning: false,
+  lastPenTime: 0,
+  activeTouches: new Map(), // pointerId -> { startX, startY, clientX, clientY, prevX, prevY }
   prevPinchDist: 0,
   prevPinchMidX: 0,
   prevPinchMidY: 0,
@@ -1375,7 +1377,19 @@ const InfiniteWhiteboard = {
       }
     });
 
-    // Touch & Pointer Bindings with passive: false to prevent scrolling
+    // Touch gesture cancellation on canvas to completely eliminate iOS Safari native magnifiers & callouts
+    const preventTouchDefaults = (e) => {
+      e.preventDefault();
+    };
+    this.canvas.addEventListener('touchstart', preventTouchDefaults, { passive: false });
+    this.canvas.addEventListener('touchmove', preventTouchDefaults, { passive: false });
+    this.canvas.addEventListener('touchend', preventTouchDefaults, { passive: false });
+    this.canvas.addEventListener('touchcancel', preventTouchDefaults, { passive: false });
+    this.canvas.addEventListener('gesturestart', preventTouchDefaults, { passive: false });
+    this.canvas.addEventListener('gesturechange', preventTouchDefaults, { passive: false });
+    this.canvas.addEventListener('gestureend', preventTouchDefaults, { passive: false });
+
+    // Touch & Pointer Bindings with passive: false
     this.canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e), { passive: false });
     this.canvas.addEventListener('pointermove', (e) => this.onPointerMove(e), { passive: false });
     this.canvas.addEventListener('pointerup', (e) => this.onPointerUp(e), { passive: false });
@@ -1384,8 +1398,15 @@ const InfiniteWhiteboard = {
     // Wheel Zooming
     this.canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
 
-    // Prevent default context menu
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Prevent default context menu and selection on the entire overlay and window when open
+    this.overlay.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.overlay.addEventListener('selectstart', (e) => e.preventDefault());
+    document.addEventListener('contextmenu', (e) => {
+      if (this.isOpen) e.preventDefault();
+    }, { capture: true });
+    document.addEventListener('selectstart', (e) => {
+      if (this.isOpen) e.preventDefault();
+    }, { capture: true });
 
     // Keyboard Shortcuts
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
@@ -1419,7 +1440,16 @@ const InfiniteWhiteboard = {
     this.isPenDrawing = false;
     this.isDrawing = false;
     this.isPanning = false;
+    this.isSingleTouchPanning = false;
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  getCanvasPoint(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
   },
 
   // Coordinate transformations
@@ -1440,38 +1470,57 @@ const InfiniteWhiteboard = {
   // Pointer Down
   onPointerDown(e) {
     e.preventDefault();
+    const pt = this.getCanvasPoint(e);
 
-    // 1. PEN HANDLING (Strict Writing Mode & 100% Palm Rejection)
+    // 1. PEN HANDLING (Apple Pencil / Stylus)
     if (e.pointerType === 'pen') {
+      this.lastPenTime = Date.now();
       this.isPenDrawing = true;
       this.isPanning = false;
-      this.activeTouches.clear(); // Discard any accidental touches that happened right as pen landed
-      try { this.canvas.setPointerCapture(e.pointerId); } catch (_) {}
-      this.startDrawing(e.clientX, e.clientY, true);
+      this.isSingleTouchPanning = false;
+      this.activeTouches.clear(); // Pen takes total priority; clear any touches
+
+      // DO NOT call setPointerCapture! On iOS WebKit, pointer capture causes pointercancel when palm touches!
+      this.startDrawing(pt.x, pt.y, true);
       return;
     }
 
-    // 2. TOUCH HANDLING
+    // 2. TOUCH HANDLING (Fingers / Palm)
     if (e.pointerType === 'touch') {
-      // PALM REJECTION: If pen is actively drawing on screen, completely discard all touches!
+      // PALM REJECTION 1: While pen is touching glass, block all touches!
       if (this.isPenDrawing) {
         return;
       }
 
+      // PALM REJECTION 2: Immunity Window (500ms after pen lift)
+      // Resting palm during brief pauses between words or letters must NOT pan the board!
+      if (Date.now() - this.lastPenTime < 500) {
+        return;
+      }
+
+      // PALM REJECTION 3: Broad contact geometry check
+      // A finger touch is small; a palm contact has large width/height (>30px).
+      if ((e.width && e.width > 30) || (e.height && e.height > 30)) {
+        return;
+      }
+
       this.activeTouches.set(e.pointerId, {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        prevX: e.clientX,
-        prevY: e.clientY
+        startX: pt.x,
+        startY: pt.y,
+        clientX: pt.x,
+        clientY: pt.y,
+        prevX: pt.x,
+        prevY: pt.y
       });
 
       if (this.stylusOnlyMode) {
         // In Stylus Only mode, finger(s) are strictly for Panning & Zooming!
         if (this.activeTouches.size === 1) {
-          this.isPanning = true;
-          this.canvas.classList.add('cursor-grabbing');
+          // Do not pan immediately; wait for drag threshold in pointermove to protect resting palms
+          this.isSingleTouchPanning = false;
         } else if (this.activeTouches.size === 2) {
           this.isPanning = true;
+          this.isSingleTouchPanning = false;
           const touches = Array.from(this.activeTouches.values());
           const t1 = touches[0];
           const t2 = touches[1];
@@ -1481,7 +1530,7 @@ const InfiniteWhiteboard = {
         }
         return;
       } else {
-        // If Stylus Only is OFF, finger draws if tool is not 'hand'
+        // Stylus Only is OFF:
         if (this.activeTool === 'hand' || this.activeTouches.size >= 2) {
           this.isPanning = true;
           if (this.activeTouches.size === 2) {
@@ -1493,8 +1542,7 @@ const InfiniteWhiteboard = {
             this.prevPinchMidY = (t1.clientY + t2.clientY) / 2;
           }
         } else {
-          try { this.canvas.setPointerCapture(e.pointerId); } catch (_) {}
-          this.startDrawing(e.clientX, e.clientY, false);
+          this.startDrawing(pt.x, pt.y, false);
         }
         return;
       }
@@ -1503,15 +1551,12 @@ const InfiniteWhiteboard = {
     // 3. MOUSE HANDLING
     if (e.pointerType === 'mouse') {
       if (e.button === 1 || e.button === 2 || this.activeTool === 'hand' || e.spaceKey) {
-        // Middle click, right click, or hand tool = Pan
         this.isPanning = true;
-        this.panStartMouseX = e.clientX;
-        this.panStartMouseY = e.clientY;
+        this.panStartMouseX = pt.x;
+        this.panStartMouseY = pt.y;
         this.canvas.classList.add('cursor-grabbing');
       } else if (e.button === 0) {
-        // Left click = Draw
-        try { this.canvas.setPointerCapture(e.pointerId); } catch (_) {}
-        this.startDrawing(e.clientX, e.clientY, false);
+        this.startDrawing(pt.x, pt.y, false);
       }
     }
   },
@@ -1519,33 +1564,44 @@ const InfiniteWhiteboard = {
   // Pointer Move
   onPointerMove(e) {
     e.preventDefault();
+    const pt = this.getCanvasPoint(e);
 
     // 1. PEN HANDLING (Zero Latency Writing, NO PANNING)
     if (e.pointerType === 'pen') {
+      this.lastPenTime = Date.now();
       if (!this.isPenDrawing || !this.isDrawing) return;
       this.continueDrawing(e);
       return;
     }
 
-    // 2. TOUCH HANDLING (1-Finger Pan, 2-Finger Pinch Zoom)
+    // 2. TOUCH HANDLING (1-Finger Pan with threshold, 2-Finger Pinch Zoom)
     if (e.pointerType === 'touch') {
       if (this.isPenDrawing) return; // Strict palm rejection
-
+      if (Date.now() - this.lastPenTime < 500) return; // Palm immunity window
       if (!this.activeTouches.has(e.pointerId)) return;
+
       const touch = this.activeTouches.get(e.pointerId);
       touch.prevX = touch.clientX;
       touch.prevY = touch.clientY;
-      touch.clientX = e.clientX;
-      touch.clientY = e.clientY;
+      touch.clientX = pt.x;
+      touch.clientY = pt.y;
 
       if (this.stylusOnlyMode || this.activeTool === 'hand' || this.activeTouches.size >= 2) {
         if (this.activeTouches.size === 1) {
-          // ONE-FINGER PAN
-          const dx = touch.clientX - touch.prevX;
-          const dy = touch.clientY - touch.prevY;
-          this.panX += dx;
-          this.panY += dy;
-          this.render();
+          // ONE-FINGER PAN: Require 8px drag threshold so resting palms don't jitter the canvas
+          const totalDist = Math.hypot(touch.clientX - touch.startX, touch.clientY - touch.startY);
+          if (!this.isSingleTouchPanning && totalDist > 8) {
+            this.isSingleTouchPanning = true;
+            this.canvas.classList.add('cursor-grabbing');
+          }
+
+          if (this.isSingleTouchPanning) {
+            const dx = touch.clientX - touch.prevX;
+            const dy = touch.clientY - touch.prevY;
+            this.panX += dx;
+            this.panY += dy;
+            this.render();
+          }
         } else if (this.activeTouches.size >= 2) {
           // TWO-FINGER PINCH TO ZOOM & TWO-FINGER PAN
           const touches = Array.from(this.activeTouches.values()).slice(0, 2);
@@ -1586,12 +1642,12 @@ const InfiniteWhiteboard = {
     // 3. MOUSE HANDLING
     if (e.pointerType === 'mouse') {
       if (this.isPanning) {
-        const dx = e.clientX - this.panStartMouseX;
-        const dy = e.clientY - this.panStartMouseY;
+        const dx = pt.x - this.panStartMouseX;
+        const dy = pt.y - this.panStartMouseY;
         this.panX += dx;
         this.panY += dy;
-        this.panStartMouseX = e.clientX;
-        this.panStartMouseY = e.clientY;
+        this.panStartMouseX = pt.x;
+        this.panStartMouseY = pt.y;
         this.render();
       } else if (this.isDrawing) {
         this.continueDrawing(e);
@@ -1604,11 +1660,11 @@ const InfiniteWhiteboard = {
     e.preventDefault();
 
     if (e.pointerType === 'pen') {
+      this.lastPenTime = Date.now();
       if (this.isPenDrawing) {
         this.finishDrawing();
         this.isPenDrawing = false;
       }
-      try { this.canvas.releasePointerCapture(e.pointerId); } catch (_) {}
       return;
     }
 
@@ -1616,6 +1672,7 @@ const InfiniteWhiteboard = {
       this.activeTouches.delete(e.pointerId);
       if (this.activeTouches.size === 0) {
         this.isPanning = false;
+        this.isSingleTouchPanning = false;
         this.canvas.classList.remove('cursor-grabbing');
         this.prevPinchDist = 0;
       } else if (this.activeTouches.size === 1) {
@@ -1624,7 +1681,6 @@ const InfiniteWhiteboard = {
       if (this.isDrawing) {
         this.finishDrawing();
       }
-      try { this.canvas.releasePointerCapture(e.pointerId); } catch (_) {}
       return;
     }
 
@@ -1636,25 +1692,33 @@ const InfiniteWhiteboard = {
       if (this.isDrawing) {
         this.finishDrawing();
       }
-      try { this.canvas.releasePointerCapture(e.pointerId); } catch (_) {}
     }
   },
 
   onPointerCancel(e) {
+    if (e.pointerType === 'pen') {
+      this.lastPenTime = Date.now();
+      // Only finalize if pen was actually lifted from glass (buttons === 0)
+      if (e.buttons === 0) {
+        this.onPointerUp(e);
+      }
+      return;
+    }
     this.onPointerUp(e);
   },
 
   // Mouse Wheel Zoom
   onWheel(e) {
     e.preventDefault();
+    const pt = this.getCanvasPoint(e);
     const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
     const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * zoomFactor));
 
     // Zoom centered on mouse location
-    const worldPoint = this.screenToWorld(e.clientX, e.clientY);
+    const worldPoint = this.screenToWorld(pt.x, pt.y);
     this.zoom = newZoom;
-    this.panX = e.clientX - worldPoint.x * this.zoom;
-    this.panY = e.clientY - worldPoint.y * this.zoom;
+    this.panX = pt.x - worldPoint.x * this.zoom;
+    this.panY = pt.y - worldPoint.y * this.zoom;
 
     this.updateZoomDisplay();
     this.render();
@@ -1700,6 +1764,7 @@ const InfiniteWhiteboard = {
   // Continue Drawing (Using Coalesced Events for Maximum Precision and 0 Latency)
   continueDrawing(e) {
     if (!this.currentStroke) return;
+    const rect = this.canvas.getBoundingClientRect();
 
     const events = (typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length > 0)
       ? e.getCoalescedEvents()
@@ -1723,8 +1788,8 @@ const InfiniteWhiteboard = {
 
       for (let i = 0; i < events.length; i++) {
         const ev = events[i];
-        const curScreenX = ev.clientX;
-        const curScreenY = ev.clientY;
+        const curScreenX = ev.clientX - rect.left;
+        const curScreenY = ev.clientY - rect.top;
 
         const dx = curScreenX - this.lastScreenPt.x;
         const dy = curScreenY - this.lastScreenPt.y;
@@ -1751,7 +1816,9 @@ const InfiniteWhiteboard = {
     } else {
       // Geometric Shapes (Line, Rect, Circle, Axis): Render live preview
       const lastEv = events[events.length - 1];
-      this.shapeCurrentWorld = this.screenToWorld(lastEv.clientX, lastEv.clientY);
+      const curX = lastEv.clientX - rect.left;
+      const curY = lastEv.clientY - rect.top;
+      this.shapeCurrentWorld = this.screenToWorld(curX, curY);
       this.render(); // Redraw board and render live shape preview
     }
   },
