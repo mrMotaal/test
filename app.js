@@ -997,6 +997,16 @@ const FullScreenPen = {
     this.ctx.lineJoin = 'round';
   },
 
+  smoothWidth: 6,
+
+  computeStrokeWidth(baseWidth, pressure, pointerType) {
+    if (pointerType === 'pen' && typeof pressure === 'number' && pressure > 0 && pressure <= 1) {
+      const eased = Math.pow(pressure, 0.85);
+      return Math.max(1, baseWidth * (0.35 + 1.25 * eased));
+    }
+    return baseWidth;
+  },
+
   toggle() {
     if (this.active) this.exit();
     else this.enter();
@@ -1006,6 +1016,14 @@ const FullScreenPen = {
     this.active = true;
     const overlay = document.getElementById('fullscreenPenOverlay');
     if (overlay) overlay.classList.add('active');
+    const fab = document.getElementById('floatingScreenPenFab');
+    if (fab) {
+      fab.classList.add('active');
+      const span = fab.querySelector('span');
+      if (span) span.innerText = 'Close Pen';
+      const icon = fab.querySelector('i');
+      if (icon) icon.className = 'fa-solid fa-xmark';
+    }
     this.startStopwatch();
     AudioEngine.success();
   },
@@ -1014,6 +1032,14 @@ const FullScreenPen = {
     this.active = false;
     const overlay = document.getElementById('fullscreenPenOverlay');
     if (overlay) overlay.classList.remove('active');
+    const fab = document.getElementById('floatingScreenPenFab');
+    if (fab) {
+      fab.classList.remove('active');
+      const span = fab.querySelector('span');
+      if (span) span.innerText = 'Write on Screen';
+      const icon = fab.querySelector('i');
+      if (icon) icon.className = 'fa-solid fa-pen-nib';
+    }
     this.stopStopwatch();
     AudioEngine.click();
   },
@@ -1046,9 +1072,12 @@ const FullScreenPen = {
     this.lastMidY = y;
     this.hasMoved = false;
 
+    const initialW = this.computeStrokeWidth(this.strokeWidth, e.pressure, e.pointerType);
+    this.smoothWidth = initialW;
+
     if (this.isEraser) {
       this.ctx.globalCompositeOperation = 'destination-out';
-      this.ctx.lineWidth = this.strokeWidth * 4;
+      this.ctx.lineWidth = Math.max(16, this.strokeWidth * 4);
     } else {
       this.ctx.globalCompositeOperation = 'source-over';
       if (this.strokeWidth >= 12) {
@@ -1056,12 +1085,12 @@ const FullScreenPen = {
       } else {
         this.ctx.strokeStyle = this.color;
       }
-      this.ctx.lineWidth = this.strokeWidth;
+      this.ctx.lineWidth = initialW;
     }
 
     if (this.activeTool === 'pen') {
       this.ctx.beginPath();
-      this.ctx.arc(x, y, (this.isEraser ? this.strokeWidth * 2 : this.strokeWidth / 2), 0, Math.PI * 2);
+      this.ctx.arc(x, y, (this.isEraser ? Math.max(8, this.strokeWidth * 2) : initialW / 2), 0, Math.PI * 2);
       this.ctx.fillStyle = this.isEraser ? 'rgba(0,0,0,1)' : (this.strokeWidth >= 12 ? 'rgba(253, 203, 110, 0.45)' : this.color);
       this.ctx.fill();
     }
@@ -1089,6 +1118,10 @@ const FullScreenPen = {
         const dx = currentX - this.prevX;
         const dy = currentY - this.prevY;
         if (dx * dx + dy * dy < 0.2) continue;
+
+        const targetW = this.computeStrokeWidth(this.strokeWidth, ev.pressure, ev.pointerType);
+        this.smoothWidth = this.smoothWidth * 0.65 + targetW * 0.35;
+        this.ctx.lineWidth = this.isEraser ? Math.max(16, this.strokeWidth * 4) : this.smoothWidth;
 
         this.hasMoved = true;
         const midX = (this.prevX + currentX) / 2;
@@ -1356,6 +1389,129 @@ const InfiniteWhiteboard = {
   lastMidScreenPt: null,
   shapeStartWorld: null,
   shapeCurrentWorld: null,
+  smoothWidth: 5,
+  eraseSnapshot: null,
+  hasErasedAnything: false,
+
+  computeStrokeWidth(baseWidth, pressure, pointerType) {
+    if (pointerType === 'pen' && typeof pressure === 'number' && pressure > 0 && pressure <= 1) {
+      // Natural responsive curve for Apple Pencil / Stylus pressure
+      const eased = Math.pow(pressure, 0.85);
+      return Math.max(1, baseWidth * (0.35 + 1.25 * eased));
+    }
+    return baseWidth;
+  },
+
+  distToSegmentSq(px, py, x1, y1, x2, y2) {
+    const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+    if (l2 === 0) return (px - x1) * (px - x1) + (py - y1) * (py - y1);
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const projX = x1 + t * (x2 - x1);
+    const projY = y1 + t * (y2 - y1);
+    return (px - projX) * (px - projX) + (py - projY) * (py - projY);
+  },
+
+  eraseAtPoint(screenX, screenY) {
+    const eraserRadius = Math.max(20, this.strokeWidth * 2.5);
+    const worldRadius = eraserRadius / this.zoom;
+    const worldRadiusSq = worldRadius * worldRadius;
+    const worldPt = this.screenToWorld(screenX, screenY);
+
+    let modified = false;
+    const nextStrokes = [];
+
+    for (let i = 0; i < this.strokes.length; i++) {
+      const s = this.strokes[i];
+      if (s.tool === 'pen') {
+        if (!s.points || s.points.length === 0) continue;
+
+        let anyHit = false;
+        for (let j = 0; j < s.points.length; j++) {
+          const p = s.points[j];
+          const d2 = (p.x - worldPt.x) * (p.x - worldPt.x) + (p.y - worldPt.y) * (p.y - worldPt.y);
+          if (d2 <= worldRadiusSq) {
+            anyHit = true;
+            break;
+          }
+          if (j > 0) {
+            const prevP = s.points[j - 1];
+            if (this.distToSegmentSq(worldPt.x, worldPt.y, prevP.x, prevP.y, p.x, p.y) <= worldRadiusSq) {
+              anyHit = true;
+              break;
+            }
+          }
+        }
+
+        if (anyHit) {
+          modified = true;
+          let curChunk = [];
+          for (let j = 0; j < s.points.length; j++) {
+            const p = s.points[j];
+            const d2 = (p.x - worldPt.x) * (p.x - worldPt.x) + (p.y - worldPt.y) * (p.y - worldPt.y);
+            if (d2 > worldRadiusSq) {
+              curChunk.push(p);
+            } else {
+              if (curChunk.length > 0) {
+                nextStrokes.push({
+                  ...s,
+                  id: Date.now() + Math.random(),
+                  points: curChunk
+                });
+                curChunk = [];
+              }
+            }
+          }
+          if (curChunk.length > 0) {
+            nextStrokes.push({
+              ...s,
+              id: Date.now() + Math.random(),
+              points: curChunk
+            });
+          }
+        } else {
+          nextStrokes.push(s);
+        }
+      } else {
+        // Geometric Shapes
+        if (s.startWorld && s.endWorld) {
+          const minX = Math.min(s.startWorld.x, s.endWorld.x) - worldRadius;
+          const maxX = Math.max(s.startWorld.x, s.endWorld.x) + worldRadius;
+          const minY = Math.min(s.startWorld.y, s.endWorld.y) - worldRadius;
+          const maxY = Math.max(s.startWorld.y, s.endWorld.y) + worldRadius;
+
+          if (worldPt.x >= minX && worldPt.x <= maxX && worldPt.y >= minY && worldPt.y <= maxY) {
+            modified = true;
+          } else {
+            nextStrokes.push(s);
+          }
+        } else {
+          nextStrokes.push(s);
+        }
+      }
+    }
+
+    if (modified) {
+      this.strokes = nextStrokes;
+      this.hasErasedAnything = true;
+      this.render();
+    }
+  },
+
+  drawEraserCursor(screenX, screenY) {
+    const dpr = window.devicePixelRatio || 1;
+    const eraserRadius = Math.max(20, this.strokeWidth * 2.5);
+    this.ctx.save();
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.ctx.beginPath();
+    this.ctx.arc(screenX, screenY, eraserRadius, 0, Math.PI * 2);
+    this.ctx.strokeStyle = 'rgba(238, 82, 83, 0.9)';
+    this.ctx.lineWidth = 2.5;
+    this.ctx.stroke();
+    this.ctx.fillStyle = 'rgba(238, 82, 83, 0.15)';
+    this.ctx.fill();
+    this.ctx.restore();
+  },
 
   init() {
     this.overlay = document.getElementById('infiniteWhiteboardOverlay');
@@ -1481,7 +1637,7 @@ const InfiniteWhiteboard = {
       this.activeTouches.clear(); // Pen takes total priority; clear any touches
 
       // DO NOT call setPointerCapture! On iOS WebKit, pointer capture causes pointercancel when palm touches!
-      this.startDrawing(pt.x, pt.y, true);
+      this.startDrawing(pt.x, pt.y, true, e.pressure, e.pointerType);
       return;
     }
 
@@ -1542,7 +1698,7 @@ const InfiniteWhiteboard = {
             this.prevPinchMidY = (t1.clientY + t2.clientY) / 2;
           }
         } else {
-          this.startDrawing(pt.x, pt.y, false);
+          this.startDrawing(pt.x, pt.y, false, e.pressure, e.pointerType);
         }
         return;
       }
@@ -1556,7 +1712,7 @@ const InfiniteWhiteboard = {
         this.panStartMouseY = pt.y;
         this.canvas.classList.add('cursor-grabbing');
       } else if (e.button === 0) {
-        this.startDrawing(pt.x, pt.y, false);
+        this.startDrawing(pt.x, pt.y, false, e.pressure, e.pointerType);
       }
     }
   },
@@ -1725,7 +1881,17 @@ const InfiniteWhiteboard = {
   },
 
   // Start Drawing Stroke
-  startDrawing(screenX, screenY, isPen) {
+  startDrawing(screenX, screenY, isPen, pressure, pointerType) {
+    if (this.activeTool === 'eraser') {
+      this.isDrawing = true;
+      this.lastScreenPt = { x: screenX, y: screenY };
+      this.eraseSnapshot = [...this.strokes];
+      this.hasErasedAnything = false;
+      this.eraseAtPoint(screenX, screenY);
+      this.drawEraserCursor(screenX, screenY);
+      return;
+    }
+
     this.isDrawing = true;
     const worldPt = this.screenToWorld(screenX, screenY);
     this.shapeStartWorld = worldPt;
@@ -1734,37 +1900,52 @@ const InfiniteWhiteboard = {
     this.lastScreenPt = { x: screenX, y: screenY };
     this.lastMidScreenPt = { x: screenX, y: screenY };
 
+    const initialWidth = this.computeStrokeWidth(this.strokeWidth, pressure, pointerType);
+    this.smoothWidth = initialWidth;
+    worldPt.w = initialWidth;
+
     this.currentStroke = {
       id: Date.now() + Math.random(),
       tool: this.activeTool,
       color: this.color,
       width: this.strokeWidth,
-      isEraser: this.activeTool === 'eraser',
       points: [worldPt]
     };
 
-    // For freehand pen or eraser, draw initial dot directly on canvas for 0-latency instant feedback
-    if (this.activeTool === 'pen' || this.activeTool === 'eraser') {
+    // For freehand pen, draw initial dot directly on canvas for 0-latency instant feedback
+    if (this.activeTool === 'pen') {
       const dpr = window.devicePixelRatio || 1;
       this.ctx.save();
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Screen coordinates
       this.ctx.beginPath();
-      const dotRadius = Math.max((this.strokeWidth * this.zoom) / 2, 1.5);
+      const dotRadius = Math.max((initialWidth * this.zoom) / 2, 1);
       this.ctx.arc(screenX, screenY, dotRadius, 0, Math.PI * 2);
-      if (this.activeTool === 'eraser') {
-        this.ctx.fillStyle = this.getBackgroundColor();
-      } else {
-        this.ctx.fillStyle = this.strokeWidth >= 20 ? this.getHighlighterColor() : this.color;
-      }
+      this.ctx.fillStyle = this.strokeWidth >= 20 ? this.getHighlighterColor() : this.color;
       this.ctx.fill();
       this.ctx.restore();
     }
   },
 
-  // Continue Drawing (Using Coalesced Events for Maximum Precision and 0 Latency)
+  // Continue Drawing (Using Coalesced Events for Maximum Precision, Zero Latency & Pressure Smoothing)
   continueDrawing(e) {
-    if (!this.currentStroke) return;
     const rect = this.canvas.getBoundingClientRect();
+
+    if (this.activeTool === 'eraser') {
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const dist = Math.hypot(curX - this.lastScreenPt.x, curY - this.lastScreenPt.y);
+      const steps = Math.max(1, Math.ceil(dist / 6));
+      for (let s = 1; s <= steps; s++) {
+        const ix = this.lastScreenPt.x + (curX - this.lastScreenPt.x) * (s / steps);
+        const iy = this.lastScreenPt.y + (curY - this.lastScreenPt.y) * (s / steps);
+        this.eraseAtPoint(ix, iy);
+      }
+      this.lastScreenPt = { x: curX, y: curY };
+      this.drawEraserCursor(curX, curY);
+      return;
+    }
+
+    if (!this.currentStroke) return;
 
     const events = (typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length > 0)
       ? e.getCoalescedEvents()
@@ -1772,19 +1953,12 @@ const InfiniteWhiteboard = {
 
     const dpr = window.devicePixelRatio || 1;
 
-    if (this.activeTool === 'pen' || this.activeTool === 'eraser') {
+    if (this.activeTool === 'pen') {
       this.ctx.save();
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Direct screen rendering
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
-
-      if (this.activeTool === 'eraser') {
-        this.ctx.strokeStyle = this.getBackgroundColor();
-        this.ctx.lineWidth = Math.max(this.strokeWidth * this.zoom * 3, 16);
-      } else {
-        this.ctx.strokeStyle = this.strokeWidth >= 20 ? this.getHighlighterColor() : this.color;
-        this.ctx.lineWidth = Math.max(this.strokeWidth * this.zoom, 1);
-      }
+      this.ctx.strokeStyle = this.strokeWidth >= 20 ? this.getHighlighterColor() : this.color;
 
       for (let i = 0; i < events.length; i++) {
         const ev = events[i];
@@ -1795,10 +1969,14 @@ const InfiniteWhiteboard = {
         const dy = curScreenY - this.lastScreenPt.y;
         if (dx * dx + dy * dy < 0.25) continue; // Skip sub-micro jitter
 
+        const targetW = this.computeStrokeWidth(this.strokeWidth, ev.pressure, ev.pointerType);
+        this.smoothWidth = this.smoothWidth * 0.65 + targetW * 0.35;
+
         const midX = (this.lastScreenPt.x + curScreenX) / 2;
         const midY = (this.lastScreenPt.y + curScreenY) / 2;
 
-        // Quadratic Bezier stroke directly rendered in real-time
+        // Quadratic Bezier stroke directly rendered in real-time with pressure width
+        this.ctx.lineWidth = Math.max(1, this.smoothWidth * this.zoom);
         this.ctx.beginPath();
         this.ctx.moveTo(this.lastMidScreenPt.x, this.lastMidScreenPt.y);
         this.ctx.quadraticCurveTo(this.lastScreenPt.x, this.lastScreenPt.y, midX, midY);
@@ -1807,8 +1985,9 @@ const InfiniteWhiteboard = {
         this.lastMidScreenPt = { x: midX, y: midY };
         this.lastScreenPt = { x: curScreenX, y: curScreenY };
 
-        // Save into world coordinates
+        // Save into world coordinates with dynamic point width
         const worldPt = this.screenToWorld(curScreenX, curScreenY);
+        worldPt.w = this.smoothWidth;
         this.currentStroke.points.push(worldPt);
       }
 
@@ -1825,11 +2004,27 @@ const InfiniteWhiteboard = {
 
   // Finish Drawing
   finishDrawing() {
-    if (!this.isDrawing || !this.currentStroke) return;
+    if (!this.isDrawing) return;
     this.isDrawing = false;
 
-    if (this.activeTool === 'pen' || this.activeTool === 'eraser') {
-      if (this.currentStroke.points.length > 0) {
+    if (this.activeTool === 'eraser') {
+      this.render(); // Clear eraser cursor ring, leaving clean canvas with grid
+      if (this.hasErasedAnything && this.eraseSnapshot) {
+        this.undoStack.push({
+          type: 'erase_batch',
+          before: this.eraseSnapshot,
+          after: [...this.strokes]
+        });
+        this.redoStack = [];
+        if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+      }
+      this.eraseSnapshot = null;
+      this.hasErasedAnything = false;
+      return;
+    }
+
+    if (this.activeTool === 'pen') {
+      if (this.currentStroke && this.currentStroke.points.length > 0) {
         this.pushStroke(this.currentStroke);
       }
     } else {
@@ -1839,7 +2034,6 @@ const InfiniteWhiteboard = {
         tool: this.activeTool,
         color: this.color,
         width: this.strokeWidth,
-        isEraser: false,
         startWorld: this.shapeStartWorld,
         endWorld: this.shapeCurrentWorld
       };
@@ -1859,17 +2053,34 @@ const InfiniteWhiteboard = {
   },
 
   undo() {
-    if (this.strokes.length === 0) return;
-    const removed = this.strokes.pop();
-    this.redoStack.push(removed);
+    if (this.undoStack.length === 0) return;
+    const action = this.undoStack.pop();
+    if (action.type === 'erase_batch') {
+      this.strokes = [...action.before];
+      this.redoStack.push(action);
+    } else {
+      const idx = this.strokes.indexOf(action);
+      if (idx !== -1) {
+        this.strokes.splice(idx, 1);
+      } else {
+        this.strokes.pop();
+      }
+      this.redoStack.push(action);
+    }
     this.render();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
 
   redo() {
     if (this.redoStack.length === 0) return;
-    const restored = this.redoStack.pop();
-    this.strokes.push(restored);
+    const action = this.redoStack.pop();
+    if (action.type === 'erase_batch') {
+      this.strokes = [...action.after];
+      this.undoStack.push(action);
+    } else {
+      this.strokes.push(action);
+      this.undoStack.push(action);
+    }
     this.render();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
@@ -1928,38 +2139,41 @@ const InfiniteWhiteboard = {
   },
 
   renderStroke(s) {
-    if (s.tool === 'pen' || s.tool === 'eraser') {
+    if (s.tool === 'pen') {
       if (!s.points || s.points.length === 0) return;
       this.ctx.save();
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
-
-      if (s.isEraser) {
-        this.ctx.strokeStyle = this.getBackgroundColor();
-        this.ctx.lineWidth = s.width * 3;
-      } else {
-        this.ctx.strokeStyle = s.width >= 20 ? this.getHighlighterColor() : s.color;
-        this.ctx.lineWidth = s.width;
-      }
+      this.ctx.strokeStyle = s.width >= 20 ? this.getHighlighterColor() : s.color;
+      this.ctx.fillStyle = s.width >= 20 ? this.getHighlighterColor() : s.color;
 
       if (s.points.length === 1) {
+        const p = s.points[0];
+        const r = (p.w || s.width) / 2;
         this.ctx.beginPath();
-        this.ctx.arc(s.points[0].x, s.points[0].y, s.width / 2, 0, Math.PI * 2);
-        this.ctx.fillStyle = s.isEraser ? this.getBackgroundColor() : (s.width >= 20 ? this.getHighlighterColor() : s.color);
+        this.ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
         this.ctx.fill();
       } else {
-        this.ctx.beginPath();
-        this.ctx.moveTo(s.points[0].x, s.points[0].y);
-        let lastMid = { x: s.points[0].x, y: s.points[0].y };
-
+        let lastMidX = s.points[0].x;
+        let lastMidY = s.points[0].y;
         for (let j = 1; j < s.points.length; j++) {
           const pt = s.points[j];
-          const midX = (lastMid.x + pt.x) / 2;
-          const midY = (lastMid.y + pt.y) / 2;
-          this.ctx.quadraticCurveTo(lastMid.x, lastMid.y, midX, midY);
-          lastMid = pt;
+          const prevPt = s.points[j - 1];
+          const midX = (prevPt.x + pt.x) / 2;
+          const midY = (prevPt.y + pt.y) / 2;
+          this.ctx.beginPath();
+          this.ctx.lineWidth = pt.w || s.width;
+          this.ctx.moveTo(lastMidX, lastMidY);
+          this.ctx.quadraticCurveTo(prevPt.x, prevPt.y, midX, midY);
+          this.ctx.stroke();
+          lastMidX = midX;
+          lastMidY = midY;
         }
-        this.ctx.lineTo(s.points[s.points.length - 1].x, s.points[s.points.length - 1].y);
+        const lastPt = s.points[s.points.length - 1];
+        this.ctx.beginPath();
+        this.ctx.lineWidth = lastPt.w || s.width;
+        this.ctx.moveTo(lastMidX, lastMidY);
+        this.ctx.lineTo(lastPt.x, lastPt.y);
         this.ctx.stroke();
       }
       this.ctx.restore();
@@ -2603,6 +2817,36 @@ function generateCalcTable() {
 }
 
 // ==========================================================================
+// MCQ RANDOMIZATION UTILITY (SHUFFLE OPTIONS & MAINTAIN CORRECT ANSWER)
+// ==========================================================================
+function randomizeMCQ(q) {
+  if (!q || !Array.isArray(q.options) || q.options.length <= 1) return q;
+
+  const originalOptions = q.options;
+  const originalCorrect = (typeof q.correct === 'number') ? q.correct : 0;
+
+  // Create array of original indices [0, 1, 2, 3]
+  const indices = originalOptions.map((_, i) => i);
+
+  // Fisher-Yates shuffle
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = indices[i];
+    indices[i] = indices[j];
+    indices[j] = tmp;
+  }
+
+  const shuffledOptions = indices.map(i => originalOptions[i]);
+  const newCorrectIndex = indices.indexOf(originalCorrect);
+
+  return {
+    ...q,
+    options: shuffledOptions,
+    correct: newCorrectIndex
+  };
+}
+
+// ==========================================================================
 // LESSON LOADER & CONTROLLER
 // ==========================================================================
 function loadLesson(lessonKey) {
@@ -2852,17 +3096,17 @@ function renderConceptTab(data) {
             </div>
             <div class="readiness-quiz-status">
               <span class="pill-badge readiness-score-badge" id="readinessScoreText">
-                <i class="fa-solid fa-star" style="color:#fdcb6e;"></i> 0 / ${ps.diagnosticQuestions.length} Mastered
+                <i class="fa-solid fa-star" style="color:#fdcb6e;"></i> 0 / ${(ps.diagnosticQuestions || []).length} Mastered
               </span>
             </div>
           </div>
           <div class="readiness-questions-list">
-            ${ps.diagnosticQuestions.map((q, qIdx) => {
+            ${((ps.diagnosticQuestions || []).map(randomizeMCQ)).map((q, qIdx, arr) => {
               const optionLetters = ['A', 'B', 'C', 'D'];
               return `
               <div class="readiness-q-card" id="${q.id}">
                 <div class="readiness-q-meta">
-                  <span class="readiness-q-badge">Question ${qIdx + 1} of ${ps.diagnosticQuestions.length}</span>
+                  <span class="readiness-q-badge">Question ${qIdx + 1} of ${arr.length}</span>
                 </div>
                 <div class="readiness-q-text">${q.text}</div>
                 <div class="readiness-options-grid">
@@ -3242,9 +3486,12 @@ function rateUnderstanding(level, btn) {
 // 5. MCQ REVISION BANK (10 QUESTIONS)
 // ==========================================================================
 let currentMCQs = [];
+let rawMCQList = null;
 
 function renderMCQBank(mcqList) {
-  currentMCQs = mcqList || ((typeof LESSON_QUADRATIC !== 'undefined') ? LESSON_QUADRATIC.mcqs : (typeof LESSON_PROPORTION !== 'undefined' ? LESSON_PROPORTION.mcqs : []));
+  if (mcqList) rawMCQList = mcqList;
+  const source = rawMCQList || ((typeof LESSON_QUADRATIC !== 'undefined') ? LESSON_QUADRATIC.mcqs : (typeof LESSON_PROPORTION !== 'undefined' ? LESSON_PROPORTION.mcqs : []));
+  currentMCQs = (source || []).map(randomizeMCQ);
   mcqScore = 0;
   mcqAnswered = 0;
 
@@ -3329,16 +3576,23 @@ function handleMCQSelect(qId, selectedIdx) {
 // 6. TIMED QUIZ - 10 MARKS (3 MODELS • 30 QUESTIONS)
 // ==========================================================================
 let currentQuizModels = [];
+let rawQuizModels = null;
 
 function initQuizModel(modelIdx, modelsList) {
-  if (modelsList) currentQuizModels = modelsList;
+  if (modelsList) rawQuizModels = modelsList;
+  if (rawQuizModels && rawQuizModels.length > 0) {
+    currentQuizModels = rawQuizModels.map(m => ({
+      ...m,
+      questions: (m.questions || []).map(randomizeMCQ)
+    }));
+  }
   activeQuizModelIndex = modelIdx;
   quizUserAnswers = {};
   quizSubmitted = false;
   quizTimerSeconds = 600;
 
   const titleEl = document.getElementById('quizActiveModelTitle');
-  if (titleEl) titleEl.innerText = currentQuizModels[modelIdx].title;
+  if (titleEl && currentQuizModels[modelIdx]) titleEl.innerText = currentQuizModels[modelIdx].title;
 
   const tabs = document.querySelectorAll('.model-tab-btn');
   tabs.forEach((tab, i) => tab.classList.toggle('active', i === modelIdx));

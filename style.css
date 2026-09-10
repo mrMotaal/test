@@ -2522,7 +2522,7 @@ body.studio-recording-mode .site-footer {
 
 body.studio-recording-mode {
   padding-top: 1rem !important;
-  background: #0f1423 !important;
+  /* Retain active light/dark theme as requested by user */
 }
 
 body.studio-recording-mode .main-container {
@@ -2553,6 +2553,50 @@ body.studio-recording-mode .exit-studio-btn {
   display: flex !important;
   align-items: center;
   gap: 0.6rem;
+}
+
+/* Floating Screen Pen Action Button (Always Accessible for Screen Writing) */
+.floating-screen-pen-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 99990;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem 1.4rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--accent-amber), #ee5253);
+  color: #ffffff;
+  font-family: var(--font-heading);
+  font-size: 0.92rem;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #b33939, 0 10px 24px rgba(238, 82, 83, 0.4);
+  transition: var(--transition-smooth);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.floating-screen-pen-fab:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 0 #b33939, 0 14px 28px rgba(238, 82, 83, 0.5);
+}
+
+.floating-screen-pen-fab:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #b33939;
+}
+
+.floating-screen-pen-fab.active {
+  background: linear-gradient(135deg, #00b894, #00cec9);
+  box-shadow: 0 5px 0 #008f70, 0 10px 24px rgba(0, 184, 148, 0.4);
+}
+
+body.studio-recording-mode .floating-screen-pen-fab {
+  bottom: 24px;
+  right: 220px;
 }
 
 .tool-btn.btn-export-board {
