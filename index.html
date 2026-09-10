@@ -22,6 +22,29 @@
 <body>
 
   <!-- =========================================================================
+       OFFICIAL PRINT EXAM HEADER BANNER (VISIBLE ONLY DURING PRINT / PDF EXPORT)
+       Educator: Mr Ahmed Abd El-Motaal
+       ========================================================================= -->
+  <div class="print-exam-header-banner" id="printExamHeaderBanner">
+    <div class="print-header-top-row">
+      <div class="print-teacher-brand">
+        <h2>Mr Ahmed Abd El-Motaal</h2>
+        <p><i class="fa-solid fa-graduation-cap"></i> Math Teacher & Content Creator • 📞 Phone: 01019775590 • 💬 WhatsApp: 01019775590</p>
+      </div>
+      <div class="print-lesson-meta">
+        <div class="print-lesson-title" id="printHeaderLessonTitle">Unit 3: Geometry • Lesson 3-1: Similarity of Polygons</div>
+        <span class="print-section-badge" id="printHeaderSectionBadge">Section 1: Concept & Practice</span>
+      </div>
+    </div>
+    <div class="print-student-info-grid">
+      <div class="print-info-field"><strong>Student Name:</strong> _____________________________</div>
+      <div class="print-info-field"><strong>Class / Group:</strong> _____________</div>
+      <div class="print-info-field"><strong>Date:</strong> ___ / ___ / 2026</div>
+      <div class="print-info-field"><strong>Evaluation Score:</strong> [ _____ / 10 ]</div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
        SITE HEADER (LOCKED CREDENTIALS — MR AHMED ABD EL-MOTAAL)
        ========================================================================= -->
   <header class="site-header">
@@ -56,6 +79,12 @@
           <i class="fa-brands fa-youtube"></i>
           <span>mr Motaal</span>
         </a>
+
+        <!-- Export Sections to Separate PDF Files Button -->
+        <button id="exportPdfBtn" class="btn-3d btn-pdf-export-3d" onclick="openPdfExportModal()" title="تصدير الأقسام إلى ملفات PDF منفصلة">
+          <i class="fa-solid fa-file-pdf"></i>
+          <span>تصدير PDF</span>
+        </button>
 
         <!-- Share Lesson with Students Button -->
         <button id="shareLessonBtn" class="btn-3d btn-share-3d" onclick="openShareModal()" title="Share This Lesson with Students">
@@ -209,11 +238,17 @@
             <h2 style="font-family:var(--font-heading); font-size:1.6rem; font-weight:800;" id="mcqBankHeaderTitle">MCQ Revision Bank (10 Questions)</h2>
             <p style="color:var(--text-muted); font-size:0.95rem;">Instant evaluation with full mathematical step-by-step reasoning for every choice.</p>
           </div>
-          <div class="mcq-progress-stat">
-            <div class="mcq-score-dial" id="mcqScoreDial">0/10</div>
-            <div>
-              <div style="font-weight:800; font-size:1rem;" id="mcqStatusText">Not Started</div>
-              <div style="color:var(--text-muted); font-size:0.82rem;">Answer all questions</div>
+          <div style="display:flex; align-items:center; gap:0.85rem; flex-wrap:wrap;">
+            <button class="section-export-btn" onclick="exportSectionToPdf('mcq')" title="تصدير بنك أسئلة الاختيار من متعدد إلى PDF منفصل">
+              <i class="fa-solid fa-file-pdf"></i>
+              <span>تصدير بنك الأسئلة (PDF)</span>
+            </button>
+            <div class="mcq-progress-stat">
+              <div class="mcq-score-dial" id="mcqScoreDial">0/10</div>
+              <div>
+                <div style="font-weight:800; font-size:1rem;" id="mcqStatusText">Not Started</div>
+                <div style="color:var(--text-muted); font-size:0.82rem;">Answer all questions</div>
+              </div>
             </div>
           </div>
         </div>
@@ -241,6 +276,12 @@
             <button class="model-tab-btn" onclick="switchQuizModel(1)">Quiz #2</button>
             <button class="model-tab-btn" onclick="switchQuizModel(2)">Quiz #3</button>
           </div>
+
+          <!-- 1-Click Export Quiz PDF Button -->
+          <button class="section-export-btn" onclick="exportSectionToPdf('quiz')" title="تصدير نماذج الاختبارات الموقوتة إلى PDF منفصل">
+            <i class="fa-solid fa-file-pdf"></i>
+            <span>تصدير الاختبارات (PDF)</span>
+          </button>
 
           <!-- 10:00 Countdown Timer Pill -->
           <div class="timer-pill-box" id="quizTimerBox">
@@ -512,6 +553,113 @@
 
       <div style="background:var(--bg-main); border-radius:var(--radius-md); padding:1rem; border:1px solid var(--border-light); font-size:0.88rem; color:var(--text-muted);">
         <strong>💡 Teacher Pro-Tip:</strong> Currently loaded: <em>Lesson One: Proportion</em> & <em>The Distance Between Two Points</em>. Any newly uploaded PDF or image will be processed into this interactive 3D Pixar platform!
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       PDF EXPORT MODAL (SEPARATE SECTIONS WITH STRICT ZERO-SPLIT GUARANTEE)
+       Educator: Mr Ahmed Abd El-Motaal
+       ========================================================================= -->
+  <div class="modal-overlay" id="pdfExportModal">
+    <div class="modal-box" style="max-width: 860px; text-align: right; direction: rtl;">
+      <button class="modal-close-btn" onclick="closePdfExportModal()">&times;</button>
+      <div style="text-align:center; margin-bottom:1.5rem;">
+        <span class="pill-badge" style="margin-bottom:0.5rem; background:rgba(214,48,49,0.12); color:#d63031;">
+          <i class="fa-solid fa-file-pdf"></i> تصدير ملفات PDF منفصلة
+        </span>
+        <h3 style="font-family:var(--font-heading); font-size:1.6rem; font-weight:800; direction:rtl;">
+          تصدير أقسام الدرس إلى ملفات PDF مستقلة
+        </h3>
+        <p style="color:var(--text-muted); font-size:0.95rem; max-width:640px; margin:0.35rem auto 0; direction:rtl;">
+          مع الالتزام التام بشرط: <strong>عدم انقسام أي سؤال أو رسم هندسي أو خيارات على صفحتين</strong> لحفظ جودة الطباعة العالية.
+        </p>
+      </div>
+
+      <!-- Lesson Selection Pills -->
+      <div style="display:flex; justify-content:center; align-items:center; gap:0.6rem; margin-bottom:1.25rem; flex-wrap:wrap; direction:ltr;">
+        <span style="font-weight:800; font-size:0.95rem; margin-right:0.4rem; color:var(--text-main); font-family:var(--font-heading);">Active Lesson:</span>
+        <button class="lesson-pill-btn" id="modalBtnSim" onclick="selectExportLesson('similarity')">
+          <i class="fa-solid fa-draw-polygon"></i> <span>Similarity</span>
+        </button>
+        <button class="lesson-pill-btn" id="modalBtnQuad" onclick="selectExportLesson('quadratic')">
+          <i class="fa-solid fa-chart-line"></i> <span>Quadratic</span>
+        </button>
+        <button class="lesson-pill-btn" id="modalBtnProp" onclick="selectExportLesson('proportion')">
+          <i class="fa-solid fa-scale-balanced"></i> <span>Proportion</span>
+        </button>
+      </div>
+
+      <!-- Options Row -->
+      <div style="display:flex; justify-content:center; align-items:center; gap:1.5rem; margin-bottom:1.4rem; padding:0.75rem 1.25rem; background:var(--bg-main); border-radius:var(--radius-pill); border:1px solid var(--border-light); font-size:0.92rem;">
+        <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; font-weight:800; color:var(--text-main); font-family:var(--font-heading);">
+          <input type="checkbox" id="chkIncludeSolutions" style="width:18px; height:18px; accent-color:var(--primary);">
+          <span>تضمين خطوات الحل النموذجية مع الأسئلة (Teacher Solution Key)</span>
+        </label>
+      </div>
+
+      <!-- 3 Separate Sections Cards Grid -->
+      <div class="pdf-export-grid" style="direction:ltr;">
+        <!-- Section 1 Card -->
+        <div class="pdf-export-card">
+          <div class="pdf-export-card-head">
+            <div class="pdf-export-icon-box" style="background:linear-gradient(135deg, #6c5ce7, #a29bfe);">
+              <i class="fa-solid fa-book-open"></i>
+            </div>
+            <div>
+              <h4>القسم 1: المفاهيم والتمارين</h4>
+              <span style="font-size:0.8rem; color:var(--text-muted); font-weight:700;">1. Concept & Practice</span>
+            </div>
+          </div>
+          <p>يشمل مراجعة المتطلبات الأساسية، الاختبار التشخيصي، التطبيقات الحياتية الهندسية، القواعد، وتمارين حاول بنفسك.</p>
+          <button class="pdf-export-btn-action" style="background:linear-gradient(135deg, #6c5ce7, #8075e5); color:#fff;" onclick="triggerSectionPdfExport('concept')">
+            <i class="fa-solid fa-file-pdf"></i> تصدير القسم 1 (PDF)
+          </button>
+        </div>
+
+        <!-- Section 2 Card -->
+        <div class="pdf-export-card">
+          <div class="pdf-export-card-head">
+            <div class="pdf-export-icon-box" style="background:linear-gradient(135deg, #00b894, #55efc4);">
+              <i class="fa-solid fa-list-check"></i>
+            </div>
+            <div>
+              <h4>القسم 2: بنك أسئلة MCQ</h4>
+              <span style="font-size:0.8rem; color:var(--text-muted); font-weight:700;">2. MCQ Bank (10 Qs)</span>
+            </div>
+          </div>
+          <p>10 أسئلة اختيار من متعدد شاملة مع رسوماتها الهندسية المتقنة، مع منع تجزئة أي سؤال بين صفحتين نهائياً.</p>
+          <button class="pdf-export-btn-action" style="background:linear-gradient(135deg, #00b894, #00a885); color:#fff;" onclick="triggerSectionPdfExport('mcq')">
+            <i class="fa-solid fa-file-pdf"></i> تصدير القسم 2 (PDF)
+          </button>
+        </div>
+
+        <!-- Section 3 Card -->
+        <div class="pdf-export-card">
+          <div class="pdf-export-card-head">
+            <div class="pdf-export-icon-box" style="background:linear-gradient(135deg, #e17055, #d63031);">
+              <i class="fa-solid fa-stopwatch"></i>
+            </div>
+            <div>
+              <h4>القسم 3: الاختبارات الموقوتة</h4>
+              <span style="font-size:0.8rem; color:var(--text-muted); font-weight:700;">3. Timed Quiz (3 Models)</span>
+            </div>
+          </div>
+          <p>نماذج الامتحانات المعيارية الثلاثة (Quiz #1, Quiz #2, Quiz #3) المنسقة خصيصاً كأوراق امتحانات مدرسية للطباعة.</p>
+          <button class="pdf-export-btn-action" style="background:linear-gradient(135deg, #e17055, #d63031); color:#fff;" onclick="triggerSectionPdfExport('quiz')">
+            <i class="fa-solid fa-file-pdf"></i> تصدير القسم 3 (PDF)
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Actions Footer Bar -->
+      <div style="background:var(--bg-main); border-radius:var(--radius-md); padding:1rem; border:1px solid var(--border-light); font-size:0.88rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem; direction:rtl;">
+        <div>
+          <i class="fa-solid fa-circle-check" style="color:#00b894;"></i> <strong>ضمان عدم انقسام الأسئلة:</strong> تم تطبيق كود <code>break-inside: avoid</code> الصارم لضمان عدم تجزئة أي سؤال بين صفحتين.
+        </div>
+        <button class="btn-3d" style="padding:0.5rem 1rem; font-size:0.85rem;" onclick="triggerSectionPdfExport('all')">
+          <i class="fa-solid fa-layer-group"></i> تصدير جميع الأقسام (PDF)
+        </button>
       </div>
     </div>
   </div>

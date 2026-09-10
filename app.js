@@ -4051,6 +4051,215 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load target lesson, or remember last active lesson, or default to similarity
   const initialLesson = chosenLesson || localStorage.getItem('math_active_lesson') || 'similarity';
   loadLesson(initialLesson);
+
+  // URL Print Section Auto-Trigger (for direct export links or automated headless PDF generation)
+  const printSectionParam = urlParams.get('printSection');
+  if (printSectionParam) {
+    const withSol = urlParams.get('solutions') === 'true';
+    document.body.setAttribute('data-print-section', printSectionParam);
+    document.body.setAttribute('data-print-solutions', withSol ? 'true' : 'false');
+    
+    // Update Print Header Titles
+    const printLessonTitle = document.getElementById('printHeaderLessonTitle');
+    const printSectionBadge = document.getElementById('printHeaderSectionBadge');
+    let activeData = (initialLesson === 'similarity') ? (typeof LESSON_SIMILARITY !== 'undefined' ? LESSON_SIMILARITY : null) :
+                     (initialLesson === 'quadratic') ? (typeof LESSON_QUADRATIC !== 'undefined' ? LESSON_QUADRATIC : null) :
+                     (typeof LESSON_PROPORTION !== 'undefined' ? LESSON_PROPORTION : null);
+    if (printLessonTitle && activeData) {
+      printLessonTitle.innerText = activeData.title || 'Math Lesson';
+    }
+    const sectionNames = {
+      'concept': 'Section 1: Concept & Practice',
+      'mcq': 'Section 2: MCQ Revision Bank (10 Questions)',
+      'quiz': 'Section 3: Timed Quiz - 10 Marks (3 Models)',
+      'all': 'Complete Lesson'
+    };
+    if (printSectionBadge) {
+      printSectionBadge.innerText = sectionNames[printSectionParam] || 'Mathematics Worksheet';
+    }
+
+    if (printSectionParam === 'quiz' || printSectionParam === 'all') {
+      prepareQuizForPrint(true);
+    }
+  }
+
+  if (urlParams.get('openPdfModal') === 'true') {
+    setTimeout(openPdfExportModal, 150);
+  }
 });
+
+// ==========================================================================
+// 11. PDF EXPORT CONTROLLER (SEPARATE SECTIONS • STRICT ZERO-SPLIT GUARANTEE)
+// Educator: Mr Ahmed Abd El-Motaal
+// ==========================================================================
+let exportSelectedLessonKey = 'similarity';
+
+function openPdfExportModal() {
+  AudioEngine.click();
+  exportSelectedLessonKey = currentLessonKey || 'similarity';
+  updateExportModalPills();
+  const modal = document.getElementById('pdfExportModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closePdfExportModal() {
+  AudioEngine.click();
+  const modal = document.getElementById('pdfExportModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function selectExportLesson(key) {
+  AudioEngine.click();
+  exportSelectedLessonKey = key;
+  if (currentLessonKey !== key) {
+    loadLesson(key);
+  }
+  updateExportModalPills();
+}
+
+function updateExportModalPills() {
+  const pSim = document.getElementById('modalBtnSim');
+  const pQuad = document.getElementById('modalBtnQuad');
+  const pProp = document.getElementById('modalBtnProp');
+  if (pSim) pSim.classList.toggle('active', exportSelectedLessonKey === 'similarity');
+  if (pQuad) pQuad.classList.toggle('active', exportSelectedLessonKey === 'quadratic');
+  if (pProp) pProp.classList.toggle('active', exportSelectedLessonKey === 'proportion');
+}
+
+function triggerSectionPdfExport(sectionKey) {
+  const includeSolutions = document.getElementById('chkIncludeSolutions')?.checked || false;
+  closePdfExportModal();
+  exportSectionToPdf(sectionKey, { includeSolutions });
+}
+
+function prepareQuizForPrint(includeAllModels = true) {
+  const container = document.getElementById('quizQuestionsContainer');
+  if (!container || !currentQuizModels || currentQuizModels.length === 0) return;
+
+  if (includeAllModels) {
+    container.innerHTML = '';
+    currentQuizModels.forEach((model, mIdx) => {
+      const modelHeader = document.createElement('div');
+      modelHeader.className = mIdx > 0 ? 'quiz-model-page-break' : '';
+      modelHeader.innerHTML = `
+        <div style="margin: 1.25rem 0 1rem; padding: 0.65rem 1rem; background: #0f172a; color: #ffffff; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff !important;">Model #${mIdx + 1}: ${model.name || 'Standardized Assessment Model'}</h3>
+          <span style="font-weight: 700; font-size: 0.85rem; color: #94a3b8 !important;">10 Questions • 10 Marks</span>
+        </div>
+      `;
+      container.appendChild(modelHeader);
+
+      model.questions.forEach((qItem, qIdx) => {
+        const card = document.createElement('article');
+        card.className = 'quiz-question-card print-card-avoid-split';
+        card.id = `quiz-print-card-${mIdx}-${qIdx}`;
+        const letters = ['A', 'B', 'C', 'D'];
+        const optionsHtml = qItem.options.map((opt, optIdx) => `
+          <div class="mcq-option-btn">
+            <span class="option-letter-badge">${letters[optIdx]}</span>
+            <span>${opt}</span>
+          </div>
+        `).join('');
+
+        card.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+            <span class="mcq-number-pill">Question ${qIdx + 1} of ${model.questions.length}</span>
+            <span style="font-size:0.85rem; font-weight:700; color:#475569;">[ 1 Mark ]</span>
+          </div>
+          <p class="quiz-question-text" style="font-family:var(--font-heading); font-size:1.1rem; font-weight:700; margin-bottom:0.75rem; color:var(--text-main);">
+            ${qItem.q}
+          </p>
+          ${qItem.diagramSvg ? `<div class="quiz-diagram-wrap" style="display:flex; justify-content:center; align-items:center; margin:0.75rem 0; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem; overflow-x:auto;">${qItem.diagramSvg}</div>` : ''}
+          <div class="mcq-options-grid">
+            ${optionsHtml}
+          </div>
+          ${qItem.explanation ? `<div class="mcq-explanation-box"><strong>Explanation & Proof:</strong> ${qItem.explanation}</div>` : ''}
+        `;
+        container.appendChild(card);
+      });
+    });
+  }
+
+  if (window.renderMathInElement) {
+    renderMathInElement(container, {
+      delimiters: [
+        {left: '$$', right: '$$', display: true},
+        {left: '$', right: '$', display: false}
+      ]
+    });
+  }
+}
+
+function exportSectionToPdf(sectionKey, options = {}) {
+  // Ensure light theme for crisp high-contrast printing
+  const previousTheme = document.documentElement.getAttribute('data-theme');
+  document.documentElement.setAttribute('data-theme', 'light');
+
+  // Set print attributes
+  document.body.setAttribute('data-print-section', sectionKey);
+  document.body.setAttribute('data-print-solutions', options.includeSolutions ? 'true' : 'false');
+
+  // Update Header Banner
+  const printLessonTitle = document.getElementById('printHeaderLessonTitle');
+  const printSectionBadge = document.getElementById('printHeaderSectionBadge');
+
+  let activeData = (currentLessonKey === 'similarity') ? LESSON_SIMILARITY :
+                   (currentLessonKey === 'quadratic') ? LESSON_QUADRATIC : LESSON_PROPORTION;
+
+  if (printLessonTitle && activeData) {
+    printLessonTitle.innerText = activeData.title || 'Math Lesson';
+  }
+
+  const sectionNames = {
+    'concept': 'Section 1: Concept & Practice (المفاهيم والتمارين)',
+    'mcq': 'Section 2: MCQ Revision Bank (بنك أسئلة الاختيار من متعدد)',
+    'quiz': 'Section 3: Timed Quiz - 10 Marks (نماذج الاختبارات الموقوتة)',
+    'all': 'Comprehensive Lesson Package (جميع أقسام الدرس كاملة)'
+  };
+
+  if (printSectionBadge) {
+    printSectionBadge.innerText = sectionNames[sectionKey] || 'Mathematics Assessment';
+  }
+
+  // If printing quiz, format all 3 models nicely
+  if (sectionKey === 'quiz' || sectionKey === 'all') {
+    prepareQuizForPrint(true);
+  }
+
+  // If printing concept with solutions, reveal solution drawers
+  if (options.includeSolutions) {
+    document.querySelectorAll('.try-it-solution-drawer').forEach(el => el.style.display = 'block');
+  }
+
+  // Rerender math formulas
+  if (window.renderMathInElement) {
+    renderMathInElement(document.body, {
+      delimiters: [
+        {left: '$$', right: '$$', display: true},
+        {left: '$', right: '$', display: false}
+      ]
+    });
+  }
+
+  // Cleanup handler
+  const cleanup = () => {
+    document.body.removeAttribute('data-print-section');
+    document.body.removeAttribute('data-print-solutions');
+    if (previousTheme) {
+      document.documentElement.setAttribute('data-theme', previousTheme);
+    }
+    // Restore single interactive quiz model
+    renderQuizQuestions();
+    window.removeEventListener('afterprint', cleanup);
+  };
+
+  window.addEventListener('afterprint', cleanup);
+
+  // Trigger print dialog
+  setTimeout(() => {
+    window.print();
+  }, 250);
+}
+
 
 

@@ -3353,3 +3353,450 @@ body.studio-recording-mode .floating-screen-pen-fab {
   color: #fdcb6e;
   font-weight: 800;
 }
+
+/* ==========================================================================
+   PDF EXPORT UI & PRINT PERFECTION (ZERO QUESTION SPLIT GUARANTEE)
+   Educator: Mr Ahmed Abd El-Motaal
+   ========================================================================== */
+
+/* Header PDF Export Button */
+.btn-pdf-export-3d {
+  background: linear-gradient(135deg, #ff7675, #d63031);
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 14px rgba(214, 48, 49, 0.35);
+}
+
+.btn-pdf-export-3d:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(214, 48, 49, 0.55);
+}
+
+/* Section Header 1-Click Export Buttons */
+.section-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: linear-gradient(135deg, rgba(235, 77, 75, 0.1), rgba(214, 48, 49, 0.18));
+  color: #d63031;
+  border: 1.5px solid rgba(214, 48, 49, 0.35);
+  border-radius: var(--radius-pill);
+  padding: 0.5rem 1.15rem;
+  font-family: var(--font-heading);
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  box-shadow: 0 2px 8px rgba(214, 48, 49, 0.12);
+}
+
+[data-theme="dark"] .section-export-btn {
+  background: linear-gradient(135deg, rgba(235, 77, 75, 0.2), rgba(214, 48, 49, 0.3));
+  color: #ff7675;
+  border-color: rgba(255, 118, 117, 0.4);
+}
+
+.section-export-btn:hover {
+  background: linear-gradient(135deg, #ff7675, #d63031);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(214, 48, 49, 0.45);
+}
+
+/* PDF Export Pixar Modal Cards */
+.pdf-export-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.pdf-export-card {
+  background: var(--bg-surface);
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: var(--transition-smooth);
+  box-shadow: var(--shadow-3d-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.pdf-export-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-3d-md);
+}
+
+.pdf-export-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.pdf-export-icon-box {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.pdf-export-card h4 {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.pdf-export-card p {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 1.2rem;
+  flex-grow: 1;
+}
+
+.pdf-export-btn-action {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 0.92rem;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  transition: var(--transition-smooth);
+}
+
+/* Print Header Sheet Container (Hidden on Screen, Shown on Print) */
+.print-exam-header-banner {
+  display: none;
+}
+
+/* ==========================================================================
+   PRINT ENGINE (STRICT ZERO-QUESTION-SPLIT SPECIFICATION)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 12mm 15mm 12mm;
+  }
+
+  *, *::before, *::after {
+    background: transparent !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font-size: 10.5pt !important;
+    line-height: 1.55 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* 1. HIDE ALL NON-PRINTABLE INTERACTIVE & UI ELEMENTS */
+  .site-header,
+  .lesson-switcher-bar,
+  .tabs-dock-wrapper,
+  .lesson-hero-banner,
+  .footer-main,
+  .floating-screen-pen-fab,
+  .exit-studio-btn,
+  .modal-overlay,
+  .ipad-screen-pen-bar,
+  .mcq-progress-stat,
+  .model-tabs-group,
+  .timer-pill-box,
+  .quiz-bottom-actions,
+  .show-solution-btn,
+  .section-export-btn,
+  .notebook-canvas-wrap,
+  .btn-stylus-mode,
+  .btn-3d,
+  .icon-btn-3d,
+  .calc-simulator-card,
+  #headerStageBadge,
+  .readiness-quiz-status {
+    display: none !important;
+  }
+
+  /* 2. DEDICATED OFFICIAL PRINT HEADER BANNER */
+  .print-exam-header-banner {
+    display: block !important;
+    border: 2px solid #0f172a !important;
+    border-radius: 8px !important;
+    padding: 10px 14px !important;
+    margin-bottom: 16px !important;
+    background: #ffffff !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-header-top-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    border-bottom: 1.5px solid #0f172a !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .print-teacher-brand h2 {
+    font-size: 15pt !important;
+    font-weight: 900 !important;
+    margin: 0 0 2px 0 !important;
+    color: #0f172a !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  .print-teacher-brand p {
+    font-size: 9pt !important;
+    margin: 0 !important;
+    color: #334155 !important;
+    font-weight: 600 !important;
+  }
+
+  .print-lesson-meta {
+    text-align: right !important;
+  }
+
+  .print-lesson-meta .print-lesson-title {
+    font-size: 12pt !important;
+    font-weight: 800 !important;
+    margin: 0 0 2px 0 !important;
+    color: #0f172a !important;
+  }
+
+  .print-lesson-meta .print-section-badge {
+    display: inline-block !important;
+    border: 1.5px solid #0f172a !important;
+    border-radius: 4px !important;
+    padding: 2px 8px !important;
+    font-size: 8.5pt !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+  }
+
+  .print-student-info-grid {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr 1fr 1fr !important;
+    gap: 8px !important;
+    font-size: 9pt !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+  }
+
+  .print-info-field {
+    border-bottom: 1px dotted #475569 !important;
+    padding-bottom: 2px !important;
+  }
+
+  /* 3. SECTION ISOLATION BASED ON data-print-section */
+  .tab-content {
+    display: none !important;
+  }
+
+  body[data-print-section="concept"] #tab-concept {
+    display: block !important;
+  }
+
+  body[data-print-section="mcq"] #tab-mcq {
+    display: block !important;
+  }
+
+  body[data-print-section="quiz"] #tab-quiz {
+    display: block !important;
+  }
+
+  body[data-print-section="all"] #tab-concept,
+  body[data-print-section="all"] #tab-mcq,
+  body[data-print-section="all"] #tab-quiz {
+    display: block !important;
+  }
+
+  body[data-print-section="all"] #tab-mcq,
+  body[data-print-section="all"] #tab-quiz {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  /* Fallback: if data-print-section not set, print whatever active tab */
+  body:not([data-print-section]) .tab-content.active {
+    display: block !important;
+  }
+
+  /* 4. THE ABSOLUTE ZERO-SPLIT RULE (CRITICAL CONDITION) */
+  .mcq-card,
+  .quiz-question-card,
+  .readiness-q-card,
+  .try-it-card,
+  .solved-example-card,
+  .rw-showcase-card,
+  .encyclo-card,
+  .rule-pill-card,
+  .print-card-avoid-split,
+  .pre-study-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    display: block !important;
+    position: relative !important;
+    background: #ffffff !important;
+    border: 1.5px solid #0f172a !important;
+    border-radius: 8px !important;
+    padding: 14px 16px !important;
+    margin-bottom: 14px !important;
+    box-shadow: none !important;
+  }
+
+  /* Keep Question Options Rigidly Together with Question Body */
+  .mcq-options-grid,
+  .readiness-options-grid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    margin-top: 10px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .mcq-option-btn,
+  .readiness-opt-btn {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    background: #ffffff !important;
+    border: 1px solid #475569 !important;
+    border-radius: 6px !important;
+    padding: 6px 10px !important;
+    font-size: 9.5pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    text-align: left !important;
+  }
+
+  .option-letter-badge,
+  .opt-letter {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 4px !important;
+    border: 1px solid #0f172a !important;
+    background: #f1f5f9 !important;
+    font-size: 8.5pt !important;
+    font-weight: 900 !important;
+    color: #0f172a !important;
+    flex-shrink: 0 !important;
+  }
+
+  .mcq-number-pill {
+    position: static !important;
+    display: inline-block !important;
+    background: #0f172a !important;
+    color: #ffffff !important;
+    font-size: 8.5pt !important;
+    font-weight: 800 !important;
+    padding: 2px 8px !important;
+    border-radius: 4px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .mcq-question-text,
+  .readiness-q-text,
+  .try-it-prompt {
+    font-size: 11pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin: 6px 0 10px 0 !important;
+    line-height: 1.5 !important;
+  }
+
+  /* SVGs, Geometry Diagrams & Figures */
+  svg,
+  .quiz-diagram-wrap,
+  .diagram-frame-box,
+  .rw-visual-box,
+  .encyclo-diagram {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    max-height: 200px !important;
+    width: auto !important;
+    margin: 8px auto !important;
+    display: block !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+  }
+
+  /* Headings must never be isolated at bottom of page */
+  h1, h2, h3, h4,
+  .mcq-bank-header,
+  .quiz-top-bar,
+  .pre-study-header,
+  .rw-showcase-header {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Print Model solutions only when requested */
+  body:not([data-print-solutions="true"]) .try-it-solution-drawer,
+  body:not([data-print-solutions="true"]) .mcq-explanation-box,
+  body:not([data-print-solutions="true"]) .mcq-explanation-drawer,
+  body:not([data-print-solutions="true"]) .readiness-explanation {
+    display: none !important;
+  }
+
+  body[data-print-solutions="true"] .try-it-solution-drawer,
+  body[data-print-solutions="true"] .mcq-explanation-box,
+  body[data-print-solutions="true"] .mcq-explanation-drawer,
+  body[data-print-solutions="true"] .readiness-explanation {
+    display: block !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    border-top: 1px dashed #475569 !important;
+    margin-top: 8px !important;
+    padding-top: 6px !important;
+    font-size: 9.5pt !important;
+    color: #0f172a !important;
+  }
+
+  /* Model separator inside quiz when all models are printed */
+  .quiz-model-page-break {
+    break-before: page !important;
+    page-break-before: always !important;
+    display: block !important;
+    height: 0 !important;
+  }
+
+  /* High fidelity KaTeX math typography in print */
+  .katex {
+    font-size: 1.05em !important;
+    color: #000000 !important;
+  }
+}
