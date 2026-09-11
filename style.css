@@ -1451,6 +1451,58 @@ body.student-only-mode .teacher-hub-toggle-btn {
   box-shadow: none;
   transition: var(--transition-fast);
 }
+
+.stylus-toolbar .tool-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.stylus-toolbar .tool-btn.ws-shapes-trigger {
+  width: auto;
+  min-width: 36px;
+  padding: 0 0.5rem;
+  gap: 4px;
+}
+
+.ws-toolbar-spacer {
+  flex: 1;
+}
+
+.stylus-toolbar .btn-resize-ctrl {
+  width: 34px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  color: var(--text-main) !important;
+  font-size: 0.86rem !important;
+}
+
+.stylus-toolbar .btn-resize-ctrl:hover {
+  background: #5856d6 !important;
+  border-color: #5856d6 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(88, 86, 214, 0.3) !important;
+}
+
+[data-theme="dark"] .stylus-toolbar .tool-btn,
+[data-theme="dark"] .stylus-toolbar .btn-resize-ctrl {
+  background: var(--bg-card-3d, #182240) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f1f4fd !important;
+}
+
+[data-theme="dark"] .stylus-toolbar .tool-btn:hover,
+[data-theme="dark"] .stylus-toolbar .btn-resize-ctrl:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+
 .tool-btn:hover {
   background: #f8fafc;
   border-color: #cbd5e1;
@@ -1712,16 +1764,9 @@ body.student-only-mode .teacher-hub-toggle-btn {
   50% { transform: scale(1.4); opacity: 0.5; }
 }
 
-/* Workspace Bottom Resize Bar & Controls */
+/* Workspace Bottom Resize Bar & Controls (Now Unified directly in Toolbar) */
 .workspace-resize-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0.45rem 1.15rem;
-  background: #ffffff;
-  border-top: 1px solid #f1f3f7;
-  user-select: none !important;
-  -webkit-user-select: none !important;
+  display: none !important;
 }
 
 .resize-drag-indicator {

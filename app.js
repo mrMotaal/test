@@ -539,20 +539,19 @@ function toggleWorkspaceShapesPopover(canvasId, event) {
 function selectWorkspaceShape(canvasId, tool, btn) {
   const trig = document.getElementById(`ws-shapes-trig-${canvasId}`);
   const icon = trig?.querySelector('.ws-shape-active-icon');
-  const label = trig?.querySelector('.ws-shape-active-label');
 
   if (tool === 'line') {
     if (icon) icon.className = 'fa-solid fa-ruler ws-shape-active-icon';
-    if (label) label.innerText = 'Line';
+    if (trig) trig.title = 'Straight Line';
   } else if (tool === 'rect') {
     if (icon) icon.className = 'fa-regular fa-square ws-shape-active-icon';
-    if (label) label.innerText = 'Box';
+    if (trig) trig.title = 'Rectangle / Box';
   } else if (tool === 'circle') {
     if (icon) icon.className = 'fa-regular fa-circle ws-shape-active-icon';
-    if (label) label.innerText = 'Circle';
+    if (trig) trig.title = 'Circle';
   } else if (tool === 'axis') {
     if (icon) icon.className = 'fa-solid fa-chart-line ws-shape-active-icon';
-    if (label) label.innerText = 'Axes';
+    if (trig) trig.title = 'Coordinate Axes';
   }
 
   setCanvasTool(canvasId, tool, trig || btn);
@@ -566,10 +565,9 @@ function selectWorkspaceShape(canvasId, tool, btn) {
 function selectWorkspaceMode(canvasId, mode, btn) {
   const trig = document.getElementById(`ws-shapes-trig-${canvasId}`);
   const icon = trig?.querySelector('.ws-shape-active-icon');
-  const label = trig?.querySelector('.ws-shape-active-label');
 
   if (icon) icon.className = 'fa-solid fa-keyboard ws-shape-active-icon';
-  if (label) label.innerText = 'Type';
+  if (trig) trig.title = 'Type Notes';
 
   setCanvasMode(canvasId, mode, trig || btn);
 
@@ -612,8 +610,7 @@ function setCanvasTool(id, tool, btn) {
   const toolbar = btn?.closest ? btn.closest('.stylus-toolbar') : document.querySelector(`#ws-${id} .stylus-toolbar`);
   if (toolbar) {
     toolbar.querySelectorAll('.tool-btn').forEach(b => {
-      const txt = b.innerText.trim();
-      if (txt.includes('Pen') || txt.includes('Highlighter') || txt.includes('Eraser') || b.classList.contains('ws-shapes-trigger')) {
+      if (b.querySelector('.fa-pen') || b.querySelector('.fa-eraser') || b.classList.contains('ws-shapes-trigger') || b.classList.contains('btn-tool-pen') || b.classList.contains('btn-tool-eraser')) {
         b.classList.remove('active');
       }
     });
@@ -984,10 +981,7 @@ function setCanvasMode(id, mode, btn) {
   const toolbar = btn.closest('.stylus-toolbar');
   if (toolbar) {
     toolbar.querySelectorAll('.tool-btn').forEach(b => {
-      const txt = b.innerText.trim();
-      if (txt.includes('Pen') || txt.includes('Highlighter') || txt.includes('Line') || txt.includes('Box') || txt.includes('Circle') || txt.includes('Axes') || txt.includes('Type') || txt.includes('Eraser')) {
-        b.classList.remove('active');
-      }
+      b.classList.remove('active');
     });
   }
   btn.classList.add('active');
@@ -1019,8 +1013,7 @@ function setCanvasEraser(id, btn) {
     inst.mode = 'draw';
     if (toolbar) {
       toolbar.querySelectorAll('.tool-btn').forEach(b => {
-        const txt = b.innerText.trim();
-        if (txt.includes('Pen') || txt.includes('Highlighter') || txt.includes('Line') || txt.includes('Box') || txt.includes('Circle') || txt.includes('Axes') || txt.includes('Type') || b.classList.contains('ws-shapes-trigger')) {
+        if (b.querySelector('.fa-pen') || b.classList.contains('ws-shapes-trigger') || b.classList.contains('btn-tool-pen')) {
           b.classList.remove('active');
         }
       });
@@ -3994,18 +3987,58 @@ function renderWorkspaceWidget(canvasId, wrapId) {
         <div class="ws-image-layer" id="ws-img-layer-${canvasId}"></div>
       </div>
 
-      <!-- 2. Stylus & Solution Toolbar (Below Solution Area - Unified Single Line) -->
+      <!-- 2. Stylus & Solution Toolbar (Single Row: Colors -> Pen/Eraser -> Undo/Redo/Clear -> Shapes -> Expand/Shrink) -->
       <div class="stylus-toolbar">
         <div class="toolbar-row single-toolbar-row">
-          <div class="toolbar-group">
-            <button class="tool-btn active" onclick="setCanvasTool('${canvasId}', 'pen', this)" title="Pen Tool">
-              <i class="fa-solid fa-pen"></i> Pen
+          <!-- 1. Colors & Stroke Thickness -->
+          <div class="toolbar-group ws-group-colors">
+            <div class="color-dot active" style="background:#182038;" onclick="setCanvasColor('${canvasId}', '#182038', this)" title="Navy Black"></div>
+            <div class="color-dot" style="background:#6c5ce7;" onclick="setCanvasColor('${canvasId}', '#6c5ce7', this)" title="Purple"></div>
+            <div class="color-dot" style="background:#eb4d4b;" onclick="setCanvasColor('${canvasId}', '#eb4d4b', this)" title="Red"></div>
+            <div class="color-dot" style="background:#00b894;" onclick="setCanvasColor('${canvasId}', '#00b894', this)" title="Mint Green"></div>
+            <div class="color-dot" style="background:#fdcb6e;" onclick="setCanvasColor('${canvasId}', '#fdcb6e', this)" title="Golden Yellow"></div>
+
+            <select class="stroke-select" onchange="setCanvasWidth('${canvasId}', this.value)" title="Stroke Width">
+              <option value="2">2px</option>
+              <option value="4" selected>4px</option>
+              <option value="7">7px</option>
+            </select>
+          </div>
+
+          <div class="ws-toolbar-divider"></div>
+
+          <!-- 2. Pen & Eraser (Icons Only) -->
+          <div class="toolbar-group ws-group-draw">
+            <button class="tool-btn active btn-tool-pen" onclick="setCanvasTool('${canvasId}', 'pen', this)" title="Pen Tool">
+              <i class="fa-solid fa-pen"></i>
             </button>
-            <!-- Shapes & Geometry Dropdown -->
+            <button class="tool-btn btn-tool-eraser" onclick="setCanvasEraser('${canvasId}', this)" title="Eraser Tool">
+              <i class="fa-solid fa-eraser"></i>
+            </button>
+          </div>
+
+          <div class="ws-toolbar-divider"></div>
+
+          <!-- 3. Undo, Redo & Clear (Icons Only) -->
+          <div class="toolbar-group ws-group-history">
+            <button class="tool-btn btn-undo" onclick="undoCanvas('${canvasId}')" title="Undo (Ctrl+Z)">
+              <i class="fa-solid fa-rotate-left"></i>
+            </button>
+            <button class="tool-btn btn-redo" onclick="redoCanvas('${canvasId}')" title="Redo (Ctrl+Y)">
+              <i class="fa-solid fa-rotate-right"></i>
+            </button>
+            <button class="tool-btn btn-clear-canvas" onclick="clearCanvasPrompt('${canvasId}')" title="Clear Canvas">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+
+          <div class="ws-toolbar-divider"></div>
+
+          <!-- 4. Geometric Shapes Dropdown (Icon Only) -->
+          <div class="toolbar-group ws-group-shapes">
             <div class="ws-dropdown-wrap">
-              <button class="tool-btn ws-shapes-trigger" id="ws-shapes-trig-${canvasId}" onclick="toggleWorkspaceShapesPopover('${canvasId}', event)" title="Shapes & Mathematical Tools">
+              <button class="tool-btn ws-shapes-trigger" id="ws-shapes-trig-${canvasId}" onclick="toggleWorkspaceShapesPopover('${canvasId}', event)" title="Geometric Shapes & Tools">
                 <i class="fa-solid fa-shapes ws-shape-active-icon"></i>
-                <span class="ws-shape-active-label">Shapes</span>
                 <i class="fa-solid fa-caret-down ws-caret"></i>
               </button>
               <div class="ws-shapes-popover" id="ws-shapes-pop-${canvasId}">
@@ -4026,46 +4059,20 @@ function renderWorkspaceWidget(canvasId, wrapId) {
                 </button>
               </div>
             </div>
-
-            <button class="tool-btn" onclick="setCanvasEraser('${canvasId}', this)" title="Eraser Tool">
-              <i class="fa-solid fa-eraser"></i> Eraser
-            </button>
-            <button class="tool-btn btn-undo" onclick="undoCanvas('${canvasId}')" title="Undo last stroke">
-              <i class="fa-solid fa-rotate-left"></i> Undo
-            </button>
-            <button class="tool-btn btn-redo" onclick="redoCanvas('${canvasId}')" title="Redo last stroke">
-              <i class="fa-solid fa-rotate-right"></i> Redo
-            </button>
           </div>
 
-          <div class="ws-toolbar-divider"></div>
+          <!-- Spacer pushing Expand/Shrink to the far right -->
+          <div class="ws-toolbar-spacer"></div>
 
-          <!-- Colors, Thickness & Clear on the Same Line -->
-          <div class="toolbar-group">
-            <div class="color-dot active" style="background:#182038;" onclick="setCanvasColor('${canvasId}', '#182038', this)" title="Navy Black"></div>
-            <div class="color-dot" style="background:#6c5ce7;" onclick="setCanvasColor('${canvasId}', '#6c5ce7', this)" title="Purple"></div>
-            <div class="color-dot" style="background:#eb4d4b;" onclick="setCanvasColor('${canvasId}', '#eb4d4b', this)" title="Red"></div>
-            <div class="color-dot" style="background:#00b894;" onclick="setCanvasColor('${canvasId}', '#00b894', this)" title="Mint Green"></div>
-            <div class="color-dot" style="background:#fdcb6e;" onclick="setCanvasColor('${canvasId}', '#fdcb6e', this)" title="Golden Yellow"></div>
-
-            <select class="stroke-select" onchange="setCanvasWidth('${canvasId}', this.value)" title="Stroke Width">
-              <option value="2">Fine 2px</option>
-              <option value="4" selected>Medium 4px</option>
-              <option value="7">Bold 7px</option>
-            </select>
-
-            <button class="tool-btn btn-clear-canvas" onclick="clearCanvasPrompt('${canvasId}')" title="Clear Canvas">
-              <i class="fa-solid fa-trash-can"></i> Clear
+          <!-- 5. Expand & Shrink (On the Same Row, Far Right, Icons Only) -->
+          <div class="toolbar-group ws-group-resize">
+            <button class="tool-btn btn-resize-ctrl" onclick="adjustCanvasHeight('${wrapId}', 140)" title="Expand Workspace Height (+)">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+            <button class="tool-btn btn-resize-ctrl" onclick="adjustCanvasHeight('${wrapId}', -140)" title="Shrink Workspace Height (-)">
+              <i class="fa-solid fa-minus"></i>
             </button>
           </div>
-        </div>
-      </div>
-
-      <!-- 3. Canvas Height Expansion / Shrink Controls (Bottom) -->
-      <div class="workspace-resize-bar">
-        <div class="workspace-size-btns">
-          <button class="btn-resize-ctrl" onclick="adjustCanvasHeight('${wrapId}', 140)" title="Expand Workspace Height">+ Expand</button>
-          <button class="btn-resize-ctrl" onclick="adjustCanvasHeight('${wrapId}', -140)" title="Shrink Workspace Height">- Shrink</button>
         </div>
       </div>
     </div>
