@@ -55,6 +55,15 @@ const StylusEngine = {
   buffers: {}, // In-memory offscreen buffers to prevent stroke loss on switchTab
   stylusOnlyMode: true, // Apple Pencil / Stylus & Mouse only (Finger rejected to prevent choppy writing & palm interference)
 
+  computeStrokeWidth(baseWidth, pressure, pointerType) {
+    if (pointerType === 'pen' && typeof pressure === 'number' && pressure > 0 && pressure <= 1) {
+      // Natural responsive curve for Apple Pencil / Stylus pressure (matching Infinite Whiteboard)
+      const eased = Math.pow(pressure, 0.85);
+      return Math.max(1, baseWidth * (0.35 + 1.25 * eased));
+    }
+    return baseWidth;
+  },
+
   initCanvas(id) {
     const canvas = document.getElementById(id);
     if (!canvas) return;
@@ -87,6 +96,7 @@ const StylusEngine = {
       shapeStartY: 0,
       color: '#182038',
       strokeWidth: 4,
+      smoothWidth: 4,
       isEraser: false,
       isDrawing: false,
       history: [],
@@ -132,6 +142,10 @@ const StylusEngine = {
         localStorage.setItem('math_text_' + id, textLayer.value);
       });
     }
+
+    if (window.WorkspaceImages) {
+      WorkspaceImages.load(id);
+    }
   },
 
   startDraw(id, e) {
@@ -174,6 +188,9 @@ const StylusEngine = {
     inst.lastMidY = y;
     inst.hasMoved = false;
 
+    const initialW = this.computeStrokeWidth(inst.strokeWidth, e.pressure, e.pointerType);
+    inst.smoothWidth = initialW;
+
     const ctx = inst.ctx;
     if (inst.isEraser) {
       ctx.globalCompositeOperation = 'destination-out';
@@ -190,7 +207,7 @@ const StylusEngine = {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1.0;
       ctx.strokeStyle = inst.color;
-      ctx.lineWidth = inst.strokeWidth;
+      ctx.lineWidth = initialW;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
     }
@@ -200,7 +217,7 @@ const StylusEngine = {
       ctx.beginPath();
       const dotR = inst.isEraser
         ? inst.strokeWidth * 2
-        : (inst.activeTool === 'highlighter' ? Math.max(inst.strokeWidth * 2.5, 12) : inst.strokeWidth / 2);
+        : (inst.activeTool === 'highlighter' ? Math.max(inst.strokeWidth * 2.5, 12) : Math.max(initialW / 2, 1));
       ctx.arc(x, y, dotR, 0, Math.PI * 2);
       ctx.fillStyle = inst.isEraser ? 'rgba(0,0,0,1)' : inst.color;
       ctx.fill();
@@ -233,7 +250,6 @@ const StylusEngine = {
         ctx.lineWidth = Math.max(inst.strokeWidth * 5, 24);
       } else if (!inst.isEraser) {
         ctx.globalAlpha = 1.0;
-        ctx.lineWidth = inst.strokeWidth;
       }
       for (let i = 0; i < events.length; i++) {
         const ev = events[i];
@@ -243,6 +259,12 @@ const StylusEngine = {
         const dx = currentX - inst.prevX;
         const dy = currentY - inst.prevY;
         if (dx * dx + dy * dy < 0.2) continue; // Skip identical jitter points
+
+        if (!inst.isEraser && inst.activeTool !== 'highlighter') {
+          const targetW = this.computeStrokeWidth(inst.strokeWidth, ev.pressure, ev.pointerType);
+          inst.smoothWidth = inst.smoothWidth * 0.65 + targetW * 0.35;
+          ctx.lineWidth = inst.smoothWidth;
+        }
 
         inst.hasMoved = true;
         const midX = (inst.prevX + currentX) / 2;
@@ -343,6 +365,9 @@ const StylusEngine = {
     // Connect final segment smoothly for freehand pen / highlighter
     if ((inst.activeTool === 'pen' || inst.activeTool === 'highlighter') && inst.hasMoved) {
       const ctx = inst.ctx;
+      if (!inst.isEraser && inst.activeTool !== 'highlighter') {
+        ctx.lineWidth = inst.smoothWidth;
+      }
       ctx.beginPath();
       ctx.moveTo(inst.lastMidX, inst.lastMidY);
       ctx.lineTo(inst.prevX, inst.prevY);
@@ -506,6 +531,10 @@ function setCanvasTool(id, tool, btn) {
   const textLayer = document.getElementById(id.replace('can-', 'text-'));
   if (canvas) canvas.style.pointerEvents = 'auto';
   if (textLayer) textLayer.style.display = 'none';
+
+  if (tool === 'pen' && window.WorkspaceImages) {
+    WorkspaceImages.lock(id);
+  }
 
   AudioEngine.click();
 }
@@ -786,16 +815,28 @@ function exportCanvasImage(id) {
     }
   }
 
-  // 5. Draw Handwritten Canvas Content
+  // 5. Draw Inserted Workspace Image if present (Underneath handwritten notes)
+  if (window.WorkspaceImages && WorkspaceImages.data[id]) {
+    const wsImg = WorkspaceImages.data[id];
+    if (wsImg && wsImg.src) {
+      const dImg = new Image();
+      dImg.src = wsImg.src;
+      if (dImg.complete) {
+        ctx.drawImage(dImg, padding + wsImg.x * dpr, canvasStartY + wsImg.y * dpr, wsImg.width * dpr, wsImg.height * dpr);
+      }
+    }
+  }
+
+  // 6. Draw Handwritten Canvas Content
   ctx.drawImage(inst.canvas, padding, canvasStartY);
 
-  // 6. Border around Canvas Area
+  // 7. Border around Canvas Area
   ctx.strokeStyle = '#cbd5e1';
   ctx.lineWidth = 1 * dpr;
   drawRoundedRect(ctx, padding, canvasStartY, qBoxWidth, inst.canvas.height, 12 * dpr);
   ctx.stroke();
 
-  // 7. Footer Watermark
+  // 8. Footer Watermark
   ctx.fillStyle = '#94a3b8';
   ctx.font = `${10 * dpr}px 'Plus Jakarta Sans', sans-serif`;
   ctx.fillText('MathQuest Pro Interactive Smartboard • Math with Mr Ahmed Abd El-Motaal', padding, exportCanvas.height - 12 * dpr);
@@ -812,13 +853,17 @@ function exportCanvasImage(id) {
 
 function toggleStudioMode() {
   const isStudio = document.body.classList.toggle('studio-recording-mode');
+  const fab = document.getElementById('floatingStudioModeFab');
+  if (fab) {
+    fab.classList.toggle('active', isStudio);
+  }
   const btn = document.getElementById('studioModeBtn');
   if (btn) {
     btn.classList.toggle('active', isStudio);
     const span = btn.querySelector('span');
     if (span) span.innerText = isStudio ? 'Exit Studio' : 'Studio Mode';
   }
-  AudioEngine.click();
+  if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
 }
 
 function setCanvasMode(id, mode, btn) {
@@ -1019,12 +1064,10 @@ const FullScreenPen = {
     const fab = document.getElementById('floatingScreenPenFab');
     if (fab) {
       fab.classList.add('active');
-      const span = fab.querySelector('span');
-      if (span) span.innerText = 'Close Pen';
+      fab.title = 'Close Pen';
       const icon = fab.querySelector('i');
       if (icon) icon.className = 'fa-solid fa-xmark';
     }
-    this.startStopwatch();
     AudioEngine.success();
   },
 
@@ -1035,12 +1078,10 @@ const FullScreenPen = {
     const fab = document.getElementById('floatingScreenPenFab');
     if (fab) {
       fab.classList.remove('active');
-      const span = fab.querySelector('span');
-      if (span) span.innerText = 'Write on Screen';
+      fab.title = 'Write on Screen';
       const icon = fab.querySelector('i');
       if (icon) icon.className = 'fa-solid fa-pen-nib';
     }
-    this.stopStopwatch();
     AudioEngine.click();
   },
 
@@ -1248,15 +1289,7 @@ const FullScreenPen = {
   },
 
   startStopwatch() {
-    this.secondsElapsed = 0;
-    const badge = document.getElementById('dockStopwatch');
     clearInterval(this.timerInterval);
-    this.timerInterval = setInterval(() => {
-      this.secondsElapsed++;
-      const m = Math.floor(this.secondsElapsed / 60).toString().padStart(2, '0');
-      const s = (this.secondsElapsed % 60).toString().padStart(2, '0');
-      if (badge) badge.innerText = `⏱️ ${m}:${s}`;
-    }, 1000);
   },
 
   stopStopwatch() {
@@ -1359,14 +1392,16 @@ const InfiniteWhiteboard = {
   maxZoom: 5.0,
 
   // Settings
-  stylusOnlyMode: true, // Default to true as requested by teacher
+  stylusOnlyMode: true, // Strict stylus mode for Apple Pencil
   color: '#ffffff',
-  strokeWidth: 5,
-  activeTool: 'pen', // 'pen', 'line', 'rect', 'circle', 'axis', 'eraser', 'hand'
-  gridMode: 'math-grid', // 'math-grid', 'dot-grid', 'dark', 'light'
+  strokeWidth: 6,
+  activeTool: 'pen', // 'pen', 'line', 'rect', 'circle', 'axis', 'eraser', 'select', 'hand'
+  gridMode: 'dark', // 'dark', 'light' (No square/grid background)
   
-  // Data
+  // Stored Data (Persistent across sessions / never cleared automatically)
   strokes: [],
+  images: [], // { id, el, src, x, y, width, height, aspectRatio }
+  selectedImageId: null,
   undoStack: [],
   redoStack: [],
 
@@ -1375,6 +1410,9 @@ const InfiniteWhiteboard = {
   isPenDrawing: false,
   isPanning: false,
   isSingleTouchPanning: false,
+  isMovingImage: false,
+  isResizingImage: false,
+  imageDragStart: null,
   lastPenTime: 0,
   activeTouches: new Map(), // pointerId -> { startX, startY, clientX, clientY, prevX, prevY }
   prevPinchDist: 0,
@@ -1389,13 +1427,12 @@ const InfiniteWhiteboard = {
   lastMidScreenPt: null,
   shapeStartWorld: null,
   shapeCurrentWorld: null,
-  smoothWidth: 5,
+  smoothWidth: 6,
   eraseSnapshot: null,
   hasErasedAnything: false,
 
   computeStrokeWidth(baseWidth, pressure, pointerType) {
     if (pointerType === 'pen' && typeof pressure === 'number' && pressure > 0 && pressure <= 1) {
-      // Natural responsive curve for Apple Pencil / Stylus pressure
       const eased = Math.pow(pressure, 0.85);
       return Math.max(1, baseWidth * (0.35 + 1.25 * eased));
     }
@@ -1513,6 +1550,213 @@ const InfiniteWhiteboard = {
     this.ctx.restore();
   },
 
+  // Hit testing for images and resize handle
+  hitTestImage(worldX, worldY, screenX, screenY) {
+    if (this.selectedImageId) {
+      const selImg = this.images.find(img => img.id === this.selectedImageId);
+      if (selImg) {
+        const handleScreenPt = this.worldToScreen(selImg.x + selImg.width, selImg.y + selImg.height);
+        const dist = Math.hypot(screenX - handleScreenPt.x, screenY - handleScreenPt.y);
+        if (dist <= 24) {
+          return { hit: 'handle', img: selImg };
+        }
+      }
+    }
+
+    for (let i = this.images.length - 1; i >= 0; i--) {
+      const img = this.images[i];
+      if (worldX >= img.x && worldX <= img.x + img.width &&
+          worldY >= img.y && worldY <= img.y + img.height) {
+        return { hit: 'body', img: img };
+      }
+    }
+
+    return null;
+  },
+
+  getSelectedImage() {
+    return this.images.find(img => img.id === this.selectedImageId);
+  },
+
+  selectImage(id) {
+    this.selectedImageId = id;
+    const selectBtn = document.getElementById('wbToolSelect');
+    this.setTool('select', selectBtn);
+    this.updateImageToolbar();
+    this.render();
+  },
+
+  deselectImage() {
+    this.selectedImageId = null;
+    this.hideImageToolbar();
+    const penBtn = document.getElementById('wbToolPen');
+    this.setTool('pen', penBtn);
+    this.render();
+  },
+
+  scaleSelectedImage(factor, isReset = false) {
+    const img = this.getSelectedImage();
+    if (!img) return;
+
+    const centerX = img.x + img.width / 2;
+    const centerY = img.y + img.height / 2;
+    const ratio = img.aspectRatio || (img.width / img.height) || 1;
+
+    if (isReset) {
+      const defaultW = Math.min(480, (window.innerWidth * 0.65) / this.zoom);
+      img.width = defaultW;
+      img.height = defaultW / ratio;
+    } else {
+      const newWidth = Math.max(60, Math.min(5000, img.width * factor));
+      img.width = newWidth;
+      img.height = newWidth / ratio;
+    }
+
+    img.x = centerX - img.width / 2;
+    img.y = centerY - img.height / 2;
+
+    this.render();
+    this.updateImageToolbar();
+    this.saveToStorage();
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  centerSelectedImage() {
+    const img = this.getSelectedImage();
+    if (!img) return;
+    const centerWorld = this.screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
+    img.x = centerWorld.x - img.width / 2;
+    img.y = centerWorld.y - img.height / 2;
+    this.render();
+    this.updateImageToolbar();
+    this.saveToStorage();
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  deleteSelectedImage() {
+    const img = this.getSelectedImage();
+    if (!img) return;
+    const idx = this.images.indexOf(img);
+    if (idx !== -1) {
+      this.images.splice(idx, 1);
+    }
+    this.selectedImageId = null;
+    this.hideImageToolbar();
+    this.setTool('pen', document.getElementById('wbToolPen'));
+    this.render();
+    this.saveToStorage();
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  updateImageToolbar() {
+    const tb = document.getElementById('wbImageToolbar');
+    if (!tb) return;
+    const img = this.getSelectedImage();
+    if (!img) {
+      tb.style.display = 'none';
+      return;
+    }
+    tb.style.display = 'flex';
+    const label = tb.querySelector('.wb-img-tb-label');
+    if (label) {
+      label.innerHTML = `<i class="fa-solid fa-image"></i> ${Math.round(img.width)}px`;
+    }
+  },
+
+  hideImageToolbar() {
+    const tb = document.getElementById('wbImageToolbar');
+    if (tb) tb.style.display = 'none';
+  },
+
+  triggerImageUpload() {
+    const input = document.getElementById('wbImageFileInput');
+    if (input) input.click();
+  },
+
+  handleImageUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imgEl = new Image();
+      imgEl.onload = () => {
+        const aspectRatio = imgEl.naturalWidth / imgEl.naturalHeight || 1;
+        const initialWidth = Math.min(480, (window.innerWidth * 0.65) / this.zoom);
+        const initialHeight = initialWidth / aspectRatio;
+
+        const centerWorld = this.screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
+        const x = centerWorld.x - initialWidth / 2;
+        const y = centerWorld.y - initialHeight / 2;
+
+        const imgObj = {
+          id: 'img_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+          el: imgEl,
+          src: e.target.result,
+          x: x,
+          y: y,
+          width: initialWidth,
+          height: initialHeight,
+          aspectRatio: aspectRatio
+        };
+
+        this.images.push(imgObj);
+        this.selectImage(imgObj.id);
+        this.saveToStorage();
+        this.render();
+        if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
+      };
+      imgEl.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  },
+
+  // 4 Adaptive Colors Engine (Dark Board vs Light Board)
+  updateColorsUI() {
+    const isLight = this.gridMode === 'light';
+    const palette = isLight
+      ? [
+          { color: '#182038', name: 'Dark Ink' },
+          { color: '#0984e3', name: 'Royal Blue' },
+          { color: '#d63031', name: 'Crimson Red' },
+          { color: '#00b894', name: 'Emerald Green' }
+        ]
+      : [
+          { color: '#ffffff', name: 'White Chalk' },
+          { color: '#fed330', name: 'Neon Yellow' },
+          { color: '#00d2d3', name: 'Cyan Blue' },
+          { color: '#ff6b6b', name: 'Coral Red' }
+        ];
+
+    const circles = [
+      document.getElementById('wbColor1'),
+      document.getElementById('wbColor2'),
+      document.getElementById('wbColor3'),
+      document.getElementById('wbColor4')
+    ];
+
+    let foundActiveIndex = -1;
+    circles.forEach((btn, idx) => {
+      if (!btn) return;
+      const p = palette[idx];
+      btn.dataset.color = p.color;
+      btn.style.backgroundColor = p.color;
+      btn.style.setProperty('--c', p.color);
+      btn.title = p.name;
+      if (btn.classList.contains('active')) {
+        foundActiveIndex = idx;
+      }
+    });
+
+    if (foundActiveIndex >= 0) {
+      this.color = palette[foundActiveIndex].color;
+    } else if (circles[0]) {
+      circles[0].classList.add('active');
+      this.color = palette[0].color;
+    }
+  },
+
   init() {
     this.overlay = document.getElementById('infiniteWhiteboardOverlay');
     this.canvas = document.getElementById('infiniteWhiteboardCanvas');
@@ -1533,17 +1777,11 @@ const InfiniteWhiteboard = {
       }
     });
 
-    // Touch gesture cancellation on canvas to completely eliminate iOS Safari native magnifiers & callouts
-    const preventTouchDefaults = (e) => {
-      e.preventDefault();
-    };
-    this.canvas.addEventListener('touchstart', preventTouchDefaults, { passive: false });
-    this.canvas.addEventListener('touchmove', preventTouchDefaults, { passive: false });
-    this.canvas.addEventListener('touchend', preventTouchDefaults, { passive: false });
-    this.canvas.addEventListener('touchcancel', preventTouchDefaults, { passive: false });
-    this.canvas.addEventListener('gesturestart', preventTouchDefaults, { passive: false });
-    this.canvas.addEventListener('gesturechange', preventTouchDefaults, { passive: false });
-    this.canvas.addEventListener('gestureend', preventTouchDefaults, { passive: false });
+    // Safari iOS native gesture prevention (preserves pointer event flow)
+    const preventGesture = (e) => e.preventDefault();
+    this.canvas.addEventListener('gesturestart', preventGesture, { passive: false });
+    this.canvas.addEventListener('gesturechange', preventGesture, { passive: false });
+    this.canvas.addEventListener('gestureend', preventGesture, { passive: false });
 
     // Touch & Pointer Bindings with passive: false
     this.canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e), { passive: false });
@@ -1554,7 +1792,7 @@ const InfiniteWhiteboard = {
     // Wheel Zooming
     this.canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
 
-    // Prevent default context menu and selection on the entire overlay and window when open
+    // Prevent default context menu and selection on the entire overlay
     this.overlay.addEventListener('contextmenu', (e) => e.preventDefault());
     this.overlay.addEventListener('selectstart', (e) => e.preventDefault());
     document.addEventListener('contextmenu', (e) => {
@@ -1567,7 +1805,11 @@ const InfiniteWhiteboard = {
     // Keyboard Shortcuts
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
 
-    // Update initial UI
+    // Load persistent state (never lost unless manually cleared!)
+    this.loadFromStorage();
+
+    // Update UI elements
+    this.updateColorsUI();
     this.updateStylusIndicator();
     this.updateZoomDisplay();
   },
@@ -1585,6 +1827,7 @@ const InfiniteWhiteboard = {
     this.isOpen = true;
     if (this.overlay) this.overlay.classList.add('active');
     this.resize();
+    this.updateColorsUI();
     this.render();
     if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
   },
@@ -1592,11 +1835,15 @@ const InfiniteWhiteboard = {
   close() {
     this.isOpen = false;
     if (this.overlay) this.overlay.classList.remove('active');
+    this.hideImageToolbar();
     this.activeTouches.clear();
     this.isPenDrawing = false;
     this.isDrawing = false;
     this.isPanning = false;
     this.isSingleTouchPanning = false;
+    this.isMovingImage = false;
+    this.isResizingImage = false;
+    this.imageDragStart = null;
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
 
@@ -1608,7 +1855,6 @@ const InfiniteWhiteboard = {
     };
   },
 
-  // Coordinate transformations
   screenToWorld(sx, sy) {
     return {
       x: (sx - this.panX) / this.zoom,
@@ -1627,84 +1873,110 @@ const InfiniteWhiteboard = {
   onPointerDown(e) {
     e.preventDefault();
     const pt = this.getCanvasPoint(e);
+    const worldPt = this.screenToWorld(pt.x, pt.y);
 
-    // 1. PEN HANDLING (Apple Pencil / Stylus)
+    // Hit test on images & handles
+    const hit = this.hitTestImage(worldPt.x, worldPt.y, pt.x, pt.y);
+
+    // 1. SELECT / MOVE / RESIZE IMAGE HANDLING
+    if (this.activeTool === 'select' || (hit && hit.hit === 'handle') || (hit && !this.isPenDrawing && e.pointerType === 'mouse')) {
+      if (hit && hit.hit === 'handle') {
+        this.isResizingImage = true;
+        this.imageDragStart = {
+          pointerWorldX: worldPt.x,
+          pointerWorldY: worldPt.y,
+          initialWidth: hit.img.width,
+          initialHeight: hit.img.height,
+          aspectRatio: hit.img.aspectRatio || (hit.img.width / hit.img.height),
+          img: hit.img
+        };
+        return;
+      }
+      if (hit && hit.hit === 'body') {
+        this.selectImage(hit.img.id);
+        this.isMovingImage = true;
+        this.imageDragStart = {
+          pointerWorldX: worldPt.x,
+          pointerWorldY: worldPt.y,
+          initialX: hit.img.x,
+          initialY: hit.img.y,
+          img: hit.img
+        };
+        return;
+      }
+      if (!hit && this.activeTool === 'select') {
+        this.deselectImage();
+      }
+    }
+
+    // 2. PEN HANDLING (Apple Pencil / Stylus - ALWAYS DRAWS SMOOTHLY)
     if (e.pointerType === 'pen') {
       this.lastPenTime = Date.now();
       this.isPenDrawing = true;
       this.isPanning = false;
       this.isSingleTouchPanning = false;
-      this.activeTouches.clear(); // Pen takes total priority; clear any touches
-
-      // DO NOT call setPointerCapture! On iOS WebKit, pointer capture causes pointercancel when palm touches!
+      this.activeTouches.clear();
       this.startDrawing(pt.x, pt.y, true, e.pressure, e.pointerType);
       return;
     }
 
-    // 2. TOUCH HANDLING (Fingers / Palm)
+    // 3. TOUCH HANDLING (Fingers - STRICTLY 1-FINGER PAN & 2-FINGER ZOOM)
     if (e.pointerType === 'touch') {
-      // PALM REJECTION 1: While pen is touching glass, block all touches!
-      if (this.isPenDrawing) {
-        return;
-      }
+      // While pen is active on glass, reject touch (strict palm rejection)
+      if (this.isPenDrawing) return;
 
-      // PALM REJECTION 2: Immunity Window (500ms after pen lift)
-      // Resting palm during brief pauses between words or letters must NOT pan the board!
-      if (Date.now() - this.lastPenTime < 500) {
-        return;
-      }
-
-      // PALM REJECTION 3: Broad contact geometry check
-      // A finger touch is small; a palm contact has large width/height (>30px).
-      if ((e.width && e.width > 30) || (e.height && e.height > 30)) {
-        return;
+      // In select tool with finger: handle image selection or move
+      if (this.activeTool === 'select' && hit) {
+        if (hit.hit === 'handle') {
+          this.isResizingImage = true;
+          this.imageDragStart = {
+            pointerWorldX: worldPt.x,
+            pointerWorldY: worldPt.y,
+            initialWidth: hit.img.width,
+            initialHeight: hit.img.height,
+            aspectRatio: hit.img.aspectRatio || (hit.img.width / hit.img.height),
+            img: hit.img
+          };
+          return;
+        }
+        if (hit.hit === 'body') {
+          this.selectImage(hit.img.id);
+          this.isMovingImage = true;
+          this.imageDragStart = {
+            pointerWorldX: worldPt.x,
+            pointerWorldY: worldPt.y,
+            initialX: hit.img.x,
+            initialY: hit.img.y,
+            img: hit.img
+          };
+          return;
+        }
       }
 
       this.activeTouches.set(e.pointerId, {
-        startX: pt.x,
-        startY: pt.y,
         clientX: pt.x,
         clientY: pt.y,
         prevX: pt.x,
         prevY: pt.y
       });
 
-      if (this.stylusOnlyMode) {
-        // In Stylus Only mode, finger(s) are strictly for Panning & Zooming!
-        if (this.activeTouches.size === 1) {
-          // Do not pan immediately; wait for drag threshold in pointermove to protect resting palms
-          this.isSingleTouchPanning = false;
-        } else if (this.activeTouches.size === 2) {
-          this.isPanning = true;
-          this.isSingleTouchPanning = false;
-          const touches = Array.from(this.activeTouches.values());
-          const t1 = touches[0];
-          const t2 = touches[1];
-          this.prevPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-          this.prevPinchMidX = (t1.clientX + t2.clientX) / 2;
-          this.prevPinchMidY = (t1.clientY + t2.clientY) / 2;
-        }
-        return;
-      } else {
-        // Stylus Only is OFF:
-        if (this.activeTool === 'hand' || this.activeTouches.size >= 2) {
-          this.isPanning = true;
-          if (this.activeTouches.size === 2) {
-            const touches = Array.from(this.activeTouches.values());
-            const t1 = touches[0];
-            const t2 = touches[1];
-            this.prevPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-            this.prevPinchMidX = (t1.clientX + t2.clientX) / 2;
-            this.prevPinchMidY = (t1.clientY + t2.clientY) / 2;
-          }
-        } else {
-          this.startDrawing(pt.x, pt.y, false, e.pressure, e.pointerType);
-        }
-        return;
+      if (this.activeTouches.size === 1) {
+        this.isPanning = true;
+        this.isSingleTouchPanning = true;
+      } else if (this.activeTouches.size >= 2) {
+        this.isPanning = true;
+        this.isSingleTouchPanning = false;
+        const touches = Array.from(this.activeTouches.values());
+        const t1 = touches[0];
+        const t2 = touches[1];
+        this.prevPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        this.prevPinchMidX = (t1.clientX + t2.clientX) / 2;
+        this.prevPinchMidY = (t1.clientY + t2.clientY) / 2;
       }
+      return;
     }
 
-    // 3. MOUSE HANDLING
+    // 4. MOUSE HANDLING (Desktop)
     if (e.pointerType === 'mouse') {
       if (e.button === 1 || e.button === 2 || this.activeTool === 'hand' || e.spaceKey) {
         this.isPanning = true;
@@ -1722,7 +1994,29 @@ const InfiniteWhiteboard = {
     e.preventDefault();
     const pt = this.getCanvasPoint(e);
 
-    // 1. PEN HANDLING (Zero Latency Writing, NO PANNING)
+    // 1. Moving / Resizing Image
+    if (this.isMovingImage && this.imageDragStart) {
+      const worldPt = this.screenToWorld(pt.x, pt.y);
+      const dx = worldPt.x - this.imageDragStart.pointerWorldX;
+      const dy = worldPt.y - this.imageDragStart.pointerWorldY;
+      this.imageDragStart.img.x = this.imageDragStart.initialX + dx;
+      this.imageDragStart.img.y = this.imageDragStart.initialY + dy;
+      this.render();
+      this.updateImageToolbar();
+      return;
+    }
+
+    if (this.isResizingImage && this.imageDragStart) {
+      const worldPt = this.screenToWorld(pt.x, pt.y);
+      const newWidth = Math.max(60, worldPt.x - this.imageDragStart.img.x);
+      this.imageDragStart.img.width = newWidth;
+      this.imageDragStart.img.height = newWidth / this.imageDragStart.aspectRatio;
+      this.render();
+      this.updateImageToolbar();
+      return;
+    }
+
+    // 2. PEN HANDLING (Zero Latency Writing, NO PANNING)
     if (e.pointerType === 'pen') {
       this.lastPenTime = Date.now();
       if (!this.isPenDrawing || !this.isDrawing) return;
@@ -1730,72 +2024,56 @@ const InfiniteWhiteboard = {
       return;
     }
 
-    // 2. TOUCH HANDLING (1-Finger Pan with threshold, 2-Finger Pinch Zoom)
+    // 3. TOUCH HANDLING (1-Finger Pan & 2-Finger Pinch Zoom)
     if (e.pointerType === 'touch') {
-      if (this.isPenDrawing) return; // Strict palm rejection
-      if (Date.now() - this.lastPenTime < 500) return; // Palm immunity window
+      if (this.isPenDrawing) return;
       if (!this.activeTouches.has(e.pointerId)) return;
 
       const touch = this.activeTouches.get(e.pointerId);
+      const dx = pt.x - touch.clientX;
+      const dy = pt.y - touch.clientY;
       touch.prevX = touch.clientX;
       touch.prevY = touch.clientY;
       touch.clientX = pt.x;
       touch.clientY = pt.y;
 
-      if (this.stylusOnlyMode || this.activeTool === 'hand' || this.activeTouches.size >= 2) {
-        if (this.activeTouches.size === 1) {
-          // ONE-FINGER PAN: Require 8px drag threshold so resting palms don't jitter the canvas
-          const totalDist = Math.hypot(touch.clientX - touch.startX, touch.clientY - touch.startY);
-          if (!this.isSingleTouchPanning && totalDist > 8) {
-            this.isSingleTouchPanning = true;
-            this.canvas.classList.add('cursor-grabbing');
-          }
+      if (this.activeTouches.size === 1) {
+        // ONE-FINGER PAN: Smooth direct canvas panning
+        this.panX += dx;
+        this.panY += dy;
+        this.render();
+      } else if (this.activeTouches.size >= 2) {
+        // TWO-FINGER PINCH TO ZOOM & TWO-FINGER PAN
+        const touches = Array.from(this.activeTouches.values()).slice(0, 2);
+        const t1 = touches[0];
+        const t2 = touches[1];
+        const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const currentMidX = (t1.clientX + t2.clientX) / 2;
+        const currentMidY = (t1.clientY + t2.clientY) / 2;
 
-          if (this.isSingleTouchPanning) {
-            const dx = touch.clientX - touch.prevX;
-            const dy = touch.clientY - touch.prevY;
-            this.panX += dx;
-            this.panY += dy;
-            this.render();
-          }
-        } else if (this.activeTouches.size >= 2) {
-          // TWO-FINGER PINCH TO ZOOM & TWO-FINGER PAN
-          const touches = Array.from(this.activeTouches.values()).slice(0, 2);
-          const t1 = touches[0];
-          const t2 = touches[1];
-          const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-          const currentMidX = (t1.clientX + t2.clientX) / 2;
-          const currentMidY = (t1.clientY + t2.clientY) / 2;
+        if (this.prevPinchDist > 0 && currentDist > 0) {
+          const zoomFactor = currentDist / this.prevPinchDist;
+          const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * zoomFactor));
 
-          if (this.prevPinchDist > 0 && currentDist > 0) {
-            const zoomFactor = currentDist / this.prevPinchDist;
-            const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * zoomFactor));
+          const worldX = (this.prevPinchMidX - this.panX) / this.zoom;
+          const worldY = (this.prevPinchMidY - this.panY) / this.zoom;
 
-            // Zoom centered on the midpoint between the two fingers
-            const worldMid = this.screenToWorld(currentMidX, currentMidY);
-            this.zoom = newZoom;
-            this.panX = currentMidX - worldMid.x * this.zoom + (currentMidX - this.prevPinchMidX);
-            this.panY = currentMidY - worldMid.y * this.zoom + (currentMidY - this.prevPinchMidY);
+          this.zoom = newZoom;
+          this.panX = currentMidX - worldX * this.zoom;
+          this.panY = currentMidY - worldY * this.zoom;
 
-            this.updateZoomDisplay();
-            this.render();
-          }
-
-          this.prevPinchDist = currentDist;
-          this.prevPinchMidX = currentMidX;
-          this.prevPinchMidY = currentMidY;
+          this.updateZoomDisplay();
+          this.render();
         }
-        return;
-      } else {
-        // Finger drawing when Stylus Only is OFF
-        if (this.isDrawing) {
-          this.continueDrawing(e);
-        }
-        return;
+
+        this.prevPinchDist = currentDist;
+        this.prevPinchMidX = currentMidX;
+        this.prevPinchMidY = currentMidY;
       }
+      return;
     }
 
-    // 3. MOUSE HANDLING
+    // 4. MOUSE HANDLING
     if (e.pointerType === 'mouse') {
       if (this.isPanning) {
         const dx = pt.x - this.panStartMouseX;
@@ -1815,6 +2093,14 @@ const InfiniteWhiteboard = {
   onPointerUp(e) {
     e.preventDefault();
 
+    if (this.isMovingImage || this.isResizingImage) {
+      this.isMovingImage = false;
+      this.isResizingImage = false;
+      this.imageDragStart = null;
+      this.saveToStorage();
+      return;
+    }
+
     if (e.pointerType === 'pen') {
       this.lastPenTime = Date.now();
       if (this.isPenDrawing) {
@@ -1833,9 +2119,9 @@ const InfiniteWhiteboard = {
         this.prevPinchDist = 0;
       } else if (this.activeTouches.size === 1) {
         this.prevPinchDist = 0;
-      }
-      if (this.isDrawing) {
-        this.finishDrawing();
+        const remaining = Array.from(this.activeTouches.values())[0];
+        remaining.prevX = remaining.clientX;
+        remaining.prevY = remaining.clientY;
       }
       return;
     }
@@ -1854,7 +2140,6 @@ const InfiniteWhiteboard = {
   onPointerCancel(e) {
     if (e.pointerType === 'pen') {
       this.lastPenTime = Date.now();
-      // Only finalize if pen was actually lifted from glass (buttons === 0)
       if (e.buttons === 0) {
         this.onPointerUp(e);
       }
@@ -1870,7 +2155,6 @@ const InfiniteWhiteboard = {
     const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
     const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * zoomFactor));
 
-    // Zoom centered on mouse location
     const worldPoint = this.screenToWorld(pt.x, pt.y);
     this.zoom = newZoom;
     this.panX = pt.x - worldPoint.x * this.zoom;
@@ -1882,6 +2166,8 @@ const InfiniteWhiteboard = {
 
   // Start Drawing Stroke
   startDrawing(screenX, screenY, isPen, pressure, pointerType) {
+    if (this.activeTool === 'select') return;
+
     if (this.activeTool === 'eraser') {
       this.isDrawing = true;
       this.lastScreenPt = { x: screenX, y: screenY };
@@ -1912,11 +2198,10 @@ const InfiniteWhiteboard = {
       points: [worldPt]
     };
 
-    // For freehand pen, draw initial dot directly on canvas for 0-latency instant feedback
     if (this.activeTool === 'pen') {
       const dpr = window.devicePixelRatio || 1;
       this.ctx.save();
-      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Screen coordinates
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.ctx.beginPath();
       const dotRadius = Math.max((initialWidth * this.zoom) / 2, 1);
       this.ctx.arc(screenX, screenY, dotRadius, 0, Math.PI * 2);
@@ -1926,7 +2211,7 @@ const InfiniteWhiteboard = {
     }
   },
 
-  // Continue Drawing (Using Coalesced Events for Maximum Precision, Zero Latency & Pressure Smoothing)
+  // Continue Drawing
   continueDrawing(e) {
     const rect = this.canvas.getBoundingClientRect();
 
@@ -1955,7 +2240,7 @@ const InfiniteWhiteboard = {
 
     if (this.activeTool === 'pen') {
       this.ctx.save();
-      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Direct screen rendering
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
       this.ctx.strokeStyle = this.strokeWidth >= 20 ? this.getHighlighterColor() : this.color;
@@ -1967,7 +2252,7 @@ const InfiniteWhiteboard = {
 
         const dx = curScreenX - this.lastScreenPt.x;
         const dy = curScreenY - this.lastScreenPt.y;
-        if (dx * dx + dy * dy < 0.25) continue; // Skip sub-micro jitter
+        if (dx * dx + dy * dy < 0.25) continue;
 
         const targetW = this.computeStrokeWidth(this.strokeWidth, ev.pressure, ev.pointerType);
         this.smoothWidth = this.smoothWidth * 0.65 + targetW * 0.35;
@@ -1975,7 +2260,6 @@ const InfiniteWhiteboard = {
         const midX = (this.lastScreenPt.x + curScreenX) / 2;
         const midY = (this.lastScreenPt.y + curScreenY) / 2;
 
-        // Quadratic Bezier stroke directly rendered in real-time with pressure width
         this.ctx.lineWidth = Math.max(1, this.smoothWidth * this.zoom);
         this.ctx.beginPath();
         this.ctx.moveTo(this.lastMidScreenPt.x, this.lastMidScreenPt.y);
@@ -1985,7 +2269,6 @@ const InfiniteWhiteboard = {
         this.lastMidScreenPt = { x: midX, y: midY };
         this.lastScreenPt = { x: curScreenX, y: curScreenY };
 
-        // Save into world coordinates with dynamic point width
         const worldPt = this.screenToWorld(curScreenX, curScreenY);
         worldPt.w = this.smoothWidth;
         this.currentStroke.points.push(worldPt);
@@ -1993,12 +2276,11 @@ const InfiniteWhiteboard = {
 
       this.ctx.restore();
     } else {
-      // Geometric Shapes (Line, Rect, Circle, Axis): Render live preview
       const lastEv = events[events.length - 1];
       const curX = lastEv.clientX - rect.left;
       const curY = lastEv.clientY - rect.top;
       this.shapeCurrentWorld = this.screenToWorld(curX, curY);
-      this.render(); // Redraw board and render live shape preview
+      this.render();
     }
   },
 
@@ -2008,7 +2290,7 @@ const InfiniteWhiteboard = {
     this.isDrawing = false;
 
     if (this.activeTool === 'eraser') {
-      this.render(); // Clear eraser cursor ring, leaving clean canvas with grid
+      this.render();
       if (this.hasErasedAnything && this.eraseSnapshot) {
         this.undoStack.push({
           type: 'erase_batch',
@@ -2016,6 +2298,7 @@ const InfiniteWhiteboard = {
           after: [...this.strokes]
         });
         this.redoStack = [];
+        this.saveToStorage();
         if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
       }
       this.eraseSnapshot = null;
@@ -2028,7 +2311,6 @@ const InfiniteWhiteboard = {
         this.pushStroke(this.currentStroke);
       }
     } else {
-      // Shape tool: finalize stroke
       const shapeStroke = {
         id: Date.now() + Math.random(),
         tool: this.activeTool,
@@ -2049,13 +2331,18 @@ const InfiniteWhiteboard = {
   pushStroke(stroke) {
     this.strokes.push(stroke);
     this.undoStack.push(stroke);
-    this.redoStack = []; // Clear redo stack on new action
+    this.redoStack = [];
+    this.saveToStorage();
   },
 
   undo() {
     if (this.undoStack.length === 0) return;
     const action = this.undoStack.pop();
-    if (action.type === 'erase_batch') {
+    if (action.type === 'full_clear') {
+      this.strokes = [...action.strokes];
+      this.images = [...action.images];
+      this.redoStack.push(action);
+    } else if (action.type === 'erase_batch') {
       this.strokes = [...action.before];
       this.redoStack.push(action);
     } else {
@@ -2067,6 +2354,7 @@ const InfiniteWhiteboard = {
       }
       this.redoStack.push(action);
     }
+    this.saveToStorage();
     this.render();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
@@ -2074,23 +2362,36 @@ const InfiniteWhiteboard = {
   redo() {
     if (this.redoStack.length === 0) return;
     const action = this.redoStack.pop();
-    if (action.type === 'erase_batch') {
+    if (action.type === 'full_clear') {
+      this.strokes = [];
+      this.images = [];
+      this.undoStack.push(action);
+    } else if (action.type === 'erase_batch') {
       this.strokes = [...action.after];
       this.undoStack.push(action);
     } else {
       this.strokes.push(action);
       this.undoStack.push(action);
     }
+    this.saveToStorage();
     this.render();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
 
   clear() {
-    if (this.strokes.length === 0) return;
-    if (confirm('Clear the entire infinite whiteboard?')) {
-      this.undoStack.push([...this.strokes]);
+    if (this.strokes.length === 0 && this.images.length === 0) return;
+    if (confirm('هل أنت متأكد من مسح محتويات السبورة بالكامل؟\nAre you sure you want to clear all whiteboard contents?')) {
+      this.undoStack.push({
+        type: 'full_clear',
+        strokes: [...this.strokes],
+        images: [...this.images]
+      });
       this.strokes = [];
+      this.images = [];
+      this.selectedImageId = null;
       this.redoStack = [];
+      this.saveToStorage();
+      this.hideImageToolbar();
       this.render();
       if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
     }
@@ -2108,7 +2409,7 @@ const InfiniteWhiteboard = {
     this.ctx.fillStyle = this.getBackgroundColor();
     this.ctx.fillRect(0, 0, width, height);
 
-    // Draw Infinite Grid
+    // Draw solid board (No square grid lines)
     this.drawGrid(width, height);
 
     // Set Transformation Matrix for World Coordinates
@@ -2121,12 +2422,28 @@ const InfiniteWhiteboard = {
       dpr * this.panY
     );
 
-    // Draw Stored Strokes
+    // 1. Draw Stored Images (Rendered before strokes so strokes are drawn on top)
+    for (let i = 0; i < this.images.length; i++) {
+      const img = this.images[i];
+      if (img.el && img.el.complete) {
+        this.ctx.drawImage(img.el, img.x, img.y, img.width, img.height);
+      }
+    }
+
+    // 2. Draw Selection Box & Handles for Selected Image
+    if (this.selectedImageId) {
+      const selImg = this.images.find(img => img.id === this.selectedImageId);
+      if (selImg) {
+        this.renderImageSelection(selImg);
+      }
+    }
+
+    // 3. Draw Stored Strokes & Shapes
     for (let i = 0; i < this.strokes.length; i++) {
       this.renderStroke(this.strokes[i]);
     }
 
-    // Draw In-Progress Shape Preview
+    // 4. Draw In-Progress Shape Preview
     if (this.isDrawing && this.shapeStartWorld && this.shapeCurrentWorld && this.activeTool !== 'pen' && this.activeTool !== 'eraser') {
       this.renderShape(
         this.activeTool,
@@ -2136,6 +2453,36 @@ const InfiniteWhiteboard = {
         this.strokeWidth
       );
     }
+  },
+
+  renderImageSelection(img) {
+    this.ctx.save();
+    this.ctx.strokeStyle = '#6c5ce7';
+    this.ctx.lineWidth = 2 / this.zoom;
+    this.ctx.setLineDash([8 / this.zoom, 6 / this.zoom]);
+    this.ctx.strokeRect(img.x, img.y, img.width, img.height);
+
+    // Corner Handles
+    const handleRadius = 9 / this.zoom;
+    const corners = [
+      { x: img.x, y: img.y },
+      { x: img.x + img.width, y: img.y },
+      { x: img.x, y: img.y + img.height },
+      { x: img.x + img.width, y: img.y + img.height, isMain: true }
+    ];
+
+    this.ctx.setLineDash([]);
+    corners.forEach(c => {
+      this.ctx.beginPath();
+      this.ctx.arc(c.x, c.y, c.isMain ? handleRadius * 1.3 : handleRadius, 0, Math.PI * 2);
+      this.ctx.fillStyle = c.isMain ? '#6c5ce7' : '#ffffff';
+      this.ctx.fill();
+      this.ctx.strokeStyle = c.isMain ? '#ffffff' : '#6c5ce7';
+      this.ctx.lineWidth = 2.5 / this.zoom;
+      this.ctx.stroke();
+    });
+
+    this.ctx.restore();
   },
 
   renderStroke(s) {
@@ -2215,22 +2562,17 @@ const InfiniteWhiteboard = {
       this.ctx.ellipse(cx, cy, Math.max(rx, 1), Math.max(ry, 1), 0, 0, Math.PI * 2);
       this.ctx.stroke();
     } else if (tool === 'axis') {
-      // Coordinate Cartesian Axes
       this.ctx.beginPath();
-      // X Axis
       this.ctx.moveTo(sx, sy);
       this.ctx.lineTo(ex, sy);
-      // Y Axis
       this.ctx.moveTo(sx, sy);
       this.ctx.lineTo(sx, ey);
       this.ctx.stroke();
 
-      // Arrow heads
       const arrow = Math.max(width * 2.5, 8);
       const xDir = ex >= sx ? 1 : -1;
       const yDir = ey >= sy ? 1 : -1;
 
-      // X arrow
       this.ctx.beginPath();
       this.ctx.moveTo(ex, sy);
       this.ctx.lineTo(ex - arrow * xDir, sy - arrow * 0.5);
@@ -2238,7 +2580,6 @@ const InfiniteWhiteboard = {
       this.ctx.closePath();
       this.ctx.fill();
 
-      // Y arrow
       this.ctx.beginPath();
       this.ctx.moveTo(sx, ey);
       this.ctx.lineTo(sx - arrow * 0.5, ey - arrow * yDir);
@@ -2246,7 +2587,6 @@ const InfiniteWhiteboard = {
       this.ctx.closePath();
       this.ctx.fill();
 
-      // Origin dot
       this.ctx.beginPath();
       this.ctx.arc(sx, sy, Math.max(width * 0.8, 3), 0, Math.PI * 2);
       this.ctx.fill();
@@ -2255,82 +2595,19 @@ const InfiniteWhiteboard = {
     this.ctx.restore();
   },
 
-  // Draw Grid Lines or Dots
   drawGrid(width, height) {
-    if (this.gridMode === 'dark' || this.gridMode === 'light') return;
-
-    const dpr = window.devicePixelRatio || 1;
-    this.ctx.save();
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const stepWorld = 50; // 50px grid in world space
-    const stepScreen = stepWorld * this.zoom;
-
-    if (stepScreen < 10) {
-      this.ctx.restore();
-      return; // Skip if too dense
-    }
-
-    const startX = (this.panX % stepScreen);
-    const startY = (this.panY % stepScreen);
-
-    if (this.gridMode === 'math-grid') {
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
-
-      this.ctx.beginPath();
-      for (let x = startX; x <= width; x += stepScreen) {
-        this.ctx.moveTo(x, 0);
-        this.ctx.lineTo(x, height);
-      }
-      for (let y = startY; y <= height; y += stepScreen) {
-        this.ctx.moveTo(0, y);
-        this.ctx.lineTo(width, y);
-      }
-      this.ctx.stroke();
-
-      // Major grid lines every 5 steps
-      const majorStep = stepScreen * 5;
-      const majorStartX = (this.panX % majorStep);
-      const majorStartY = (this.panY % majorStep);
-
-      this.ctx.beginPath();
-      this.ctx.strokeStyle = 'rgba(108, 92, 231, 0.22)';
-      this.ctx.lineWidth = 1.5;
-      for (let x = majorStartX; x <= width; x += majorStep) {
-        this.ctx.moveTo(x, 0);
-        this.ctx.lineTo(x, height);
-      }
-      for (let y = majorStartY; y <= height; y += majorStep) {
-        this.ctx.moveTo(0, y);
-        this.ctx.lineTo(width, y);
-      }
-      this.ctx.stroke();
-    } else if (this.gridMode === 'dot-grid') {
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
-      const dotRadius = Math.max(1, Math.min(2.5, 1.5 * this.zoom));
-      for (let x = startX; x <= width; x += stepScreen) {
-        for (let y = startY; y <= height; y += stepScreen) {
-          this.ctx.beginPath();
-          this.ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-      }
-    }
-
-    this.ctx.restore();
+    return; // Solid board, no square/grid background
   },
 
   getBackgroundColor() {
-    if (this.gridMode === 'light') return '#f8f9fc';
-    return '#0f141c'; // Classic math chalkboard dark slate
+    if (this.gridMode === 'light') return '#ffffff';
+    return '#0f141c';
   },
 
   getHighlighterColor() {
     return 'rgba(254, 211, 48, 0.4)';
   },
 
-  // Stylus Only Mode Toggle
   toggleStylusOnly() {
     this.stylusOnlyMode = !this.stylusOnlyMode;
     this.updateStylusIndicator();
@@ -2359,7 +2636,6 @@ const InfiniteWhiteboard = {
     }
   },
 
-  // Zoom Controls
   zoomIn() {
     this.setZoomAtCenter(this.zoom * 1.25);
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
@@ -2400,10 +2676,9 @@ const InfiniteWhiteboard = {
     }
   },
 
-  // Color & Width Settings
   setColor(col, btn) {
     this.color = col;
-    if (this.activeTool === 'eraser') {
+    if (this.activeTool === 'eraser' || this.activeTool === 'select') {
       this.setTool('pen', document.getElementById('wbToolPen'));
     }
     const wrap = btn?.parentElement;
@@ -2411,17 +2686,33 @@ const InfiniteWhiteboard = {
       wrap.querySelectorAll('.wb-color-circle').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
+    this.saveToStorage();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
 
   setWidth(w, btn) {
     this.strokeWidth = parseInt(w, 10);
-    const wrap = btn?.parentElement;
-    if (wrap) {
-      wrap.querySelectorAll('.wb-stroke-btn').forEach(b => b.classList.remove('active'));
+    const dock = document.getElementById('wbFloatingDock');
+    if (dock) {
+      dock.querySelectorAll('.wb-stroke-btn').forEach(b => {
+        if (b.dataset.width && parseInt(b.dataset.width, 10) === this.strokeWidth) {
+          b.classList.add('active');
+        } else if (b.dataset.width) {
+          b.classList.remove('active');
+        }
+      });
+    }
+    if (btn) {
+      dock?.querySelectorAll('.wb-stroke-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
+    this.saveToStorage();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  stepWidth(delta) {
+    const newW = Math.max(2, Math.min(32, this.strokeWidth + delta));
+    this.setWidth(newW);
   },
 
   setTool(tool, btn) {
@@ -2432,30 +2723,142 @@ const InfiniteWhiteboard = {
     }
     if (btn) btn.classList.add('active');
 
-    // Update cursor
     if (this.canvas) {
       this.canvas.classList.toggle('cursor-hand', tool === 'hand');
+      this.canvas.classList.toggle('cursor-select', tool === 'select');
+    }
+    if (tool !== 'select' && this.selectedImageId) {
+      if (tool === 'eraser') {
+        this.deselectImage();
+      }
     }
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
 
   cycleGrid() {
-    const modes = ['math-grid', 'dot-grid', 'dark', 'light'];
-    const idx = modes.indexOf(this.gridMode);
-    this.gridMode = modes[(idx + 1) % modes.length];
+    this.gridMode = (this.gridMode === 'light') ? 'dark' : 'light';
 
     const label = document.getElementById('wbGridLabel');
-    if (label) {
-      if (this.gridMode === 'math-grid') label.innerText = 'Math Grid';
-      else if (this.gridMode === 'dot-grid') label.innerText = 'Dot Grid';
-      else if (this.gridMode === 'dark') label.innerText = 'Dark Board';
-      else if (this.gridMode === 'light') label.innerText = 'Light Board';
+    if (this.gridMode === 'light') {
+      if (label) label.innerText = 'Dark Board';
+    } else {
+      if (label) label.innerText = 'Light Board';
     }
+
+    this.updateColorsUI();
+    this.saveToStorage();
     this.render();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
 
-  // Export Board Snapshot as High-Resolution PNG
+  saveToStorage() {
+    try {
+      const payload = {
+        version: 3,
+        gridMode: this.gridMode,
+        color: this.color,
+        strokeWidth: this.strokeWidth,
+        panX: Math.round(this.panX * 10) / 10,
+        panY: Math.round(this.panY * 10) / 10,
+        zoom: Math.round(this.zoom * 1000) / 1000,
+        strokes: this.strokes.map(s => {
+          if (s.tool === 'pen') {
+            return {
+              id: s.id,
+              tool: s.tool,
+              color: s.color,
+              width: s.width,
+              points: (s.points || []).map(p => ({
+                x: Math.round(p.x * 10) / 10,
+                y: Math.round(p.y * 10) / 10,
+                w: p.w ? Math.round(p.w * 10) / 10 : undefined
+              }))
+            };
+          } else {
+            return {
+              id: s.id,
+              tool: s.tool,
+              color: s.color,
+              width: s.width,
+              startWorld: s.startWorld ? {
+                x: Math.round(s.startWorld.x * 10) / 10,
+                y: Math.round(s.startWorld.y * 10) / 10
+              } : null,
+              endWorld: s.endWorld ? {
+                x: Math.round(s.endWorld.x * 10) / 10,
+                y: Math.round(s.endWorld.y * 10) / 10
+              } : null
+            };
+          }
+        }),
+        images: this.images.map(img => ({
+          id: img.id,
+          src: img.src,
+          x: Math.round(img.x * 10) / 10,
+          y: Math.round(img.y * 10) / 10,
+          width: Math.round(img.width * 10) / 10,
+          height: Math.round(img.height * 10) / 10,
+          aspectRatio: img.aspectRatio || (img.width / img.height)
+        }))
+      };
+      localStorage.setItem('mathquest_wb_data_v3', JSON.stringify(payload));
+    } catch (err) {
+      console.warn('Whiteboard storage save skipped:', err);
+    }
+  },
+
+  loadFromStorage() {
+    try {
+      const raw = localStorage.getItem('mathquest_wb_data_v3');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (!data) return;
+
+      if (data.gridMode) {
+        this.gridMode = data.gridMode;
+        const label = document.getElementById('wbGridLabel');
+        if (label) {
+          label.innerText = (this.gridMode === 'light') ? 'Dark Board' : 'Light Board';
+        }
+      }
+      if (typeof data.panX === 'number' && typeof data.panY === 'number') {
+        this.panX = data.panX;
+        this.panY = data.panY;
+      }
+      if (typeof data.zoom === 'number') {
+        this.zoom = data.zoom;
+      }
+      if (typeof data.strokeWidth === 'number') {
+        this.strokeWidth = data.strokeWidth;
+      }
+      if (Array.isArray(data.strokes)) {
+        this.strokes = data.strokes;
+      }
+      if (Array.isArray(data.images) && data.images.length > 0) {
+        this.images = [];
+        data.images.forEach(imgData => {
+          const el = new Image();
+          el.onload = () => {
+            if (this.isOpen) this.render();
+          };
+          el.src = imgData.src;
+          this.images.push({
+            id: imgData.id,
+            el: el,
+            src: imgData.src,
+            x: imgData.x,
+            y: imgData.y,
+            width: imgData.width,
+            height: imgData.height,
+            aspectRatio: imgData.aspectRatio || (imgData.width / imgData.height)
+          });
+        });
+      }
+    } catch (err) {
+      console.warn('Whiteboard storage load failed:', err);
+    }
+  },
+
   exportPNG() {
     const dpr = window.devicePixelRatio || 1;
     const exportCanvas = document.createElement('canvas');
@@ -2463,10 +2866,8 @@ const InfiniteWhiteboard = {
     exportCanvas.height = this.canvas.height;
     const expCtx = exportCanvas.getContext('2d');
 
-    // Draw current canvas
     expCtx.drawImage(this.canvas, 0, 0);
 
-    // Watermark credentials
     expCtx.fillStyle = 'rgba(255, 255, 255, 0.85)';
     expCtx.font = `bold ${16 * dpr}px 'Outfit', sans-serif`;
     expCtx.fillText('Mr Ahmed Abd El-Motaal • YouTube: mr Motaal • 01019775590', 28 * dpr, exportCanvas.height - 24 * dpr);
@@ -2478,12 +2879,15 @@ const InfiniteWhiteboard = {
     if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
   },
 
-  // Keyboard Navigation
   onKeyDown(e) {
     if (!this.isOpen) return;
 
     if (e.key === 'Escape') {
-      this.close();
+      if (this.selectedImageId) {
+        this.deselectImage();
+      } else {
+        this.close();
+      }
       return;
     }
 
@@ -2516,7 +2920,6 @@ const InfiniteWhiteboard = {
       }
     }
 
-    // Single key tool selectors (only if not typing in an input)
     if (['input', 'textarea', 'select'].includes(document.activeElement?.tagName?.toLowerCase())) return;
 
     const k = e.key.toLowerCase();
@@ -2526,7 +2929,14 @@ const InfiniteWhiteboard = {
     else if (k === 'r') this.setTool('rect', document.getElementById('wbToolRect'));
     else if (k === 'c') this.setTool('circle', document.getElementById('wbToolCircle'));
     else if (k === 'a') this.setTool('axis', document.getElementById('wbToolAxis'));
+    else if (k === 'v' || k === 's') this.setTool('select', document.getElementById('wbToolSelect'));
     else if (k === 'h') this.setTool('hand', document.getElementById('wbToolHand'));
+    else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (this.selectedImageId) {
+        e.preventDefault();
+        this.deleteSelectedImage();
+      }
+    }
   }
 };
 
@@ -2962,9 +3372,285 @@ function loadLesson(lessonKey) {
   }, 100);
 }
 
+// ==========================================================================
+// WORKSPACE DIAGRAM & IMAGE INSERTION ENGINE (MOVE, SCALE, LOCK & PERSIST)
+// ==========================================================================
+const WorkspaceImages = {
+  data: {},
+
+  save(canvasId) {
+    try {
+      const item = this.data[canvasId];
+      if (item) {
+        localStorage.setItem('math_ws_img_' + canvasId, JSON.stringify(item));
+      } else {
+        localStorage.removeItem('math_ws_img_' + canvasId);
+      }
+    } catch (e) {
+      console.warn('Storage save error for workspace image:', e);
+    }
+  },
+
+  load(canvasId) {
+    try {
+      const raw = localStorage.getItem('math_ws_img_' + canvasId);
+      if (raw) {
+        this.data[canvasId] = JSON.parse(raw);
+        this.renderBox(canvasId);
+      }
+    } catch (e) {
+      console.warn('Storage load error for workspace image:', e);
+    }
+  },
+
+  lock(canvasId) {
+    const item = this.data[canvasId];
+    if (item && !item.isLocked) {
+      item.isLocked = true;
+      this.renderBox(canvasId);
+      this.save(canvasId);
+    }
+  },
+
+  renderBox(canvasId) {
+    const layer = document.getElementById(`ws-img-layer-${canvasId}`);
+    const moveBtn = document.getElementById(`btn-img-move-${canvasId}`);
+    if (!layer) return;
+
+    const item = this.data[canvasId];
+    if (!item) {
+      layer.innerHTML = '';
+      if (moveBtn) moveBtn.style.display = 'none';
+      return;
+    }
+
+    if (moveBtn) {
+      moveBtn.style.display = 'inline-flex';
+      moveBtn.classList.toggle('active', !item.isLocked);
+    }
+
+    layer.innerHTML = `
+      <div class="ws-image-box ${item.isLocked ? 'is-locked' : ''}" id="ws-box-${canvasId}" style="left:${item.x}px; top:${item.y}px; width:${item.width}px; height:${item.height}px;">
+        <div class="ws-img-header">
+          <span class="ws-img-drag-handle" id="ws-drag-${canvasId}"><i class="fa-solid fa-arrows-up-down-left-right"></i> Move</span>
+          <div class="ws-img-tools">
+            <button type="button" class="ws-img-btn" onclick="WorkspaceImages.scale('${canvasId}', 1.15)" title="Enlarge (+15%)"><i class="fa-solid fa-plus"></i></button>
+            <button type="button" class="ws-img-btn" onclick="WorkspaceImages.scale('${canvasId}', 0.85)" title="Shrink (-15%)"><i class="fa-solid fa-minus"></i></button>
+            <button type="button" class="ws-img-btn ws-img-lock-btn ${item.isLocked ? 'active' : ''}" onclick="WorkspaceImages.toggleLock('${canvasId}')" title="${item.isLocked ? 'Unlock to Move' : 'Lock to Draw Over'}">
+              <i class="fa-solid ${item.isLocked ? 'fa-lock' : 'fa-lock-open'}"></i>
+            </button>
+            <button type="button" class="ws-img-btn ws-img-del-btn" onclick="WorkspaceImages.remove('${canvasId}')" title="Delete Image"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+        <div class="ws-img-body">
+          <img src="${item.src}" alt="Diagram" draggable="false">
+        </div>
+        <div class="ws-img-resize-handle" id="ws-resize-${canvasId}" title="Drag corner to scale"></div>
+      </div>
+    `;
+
+    this.attachDragAndResize(canvasId);
+  },
+
+  attachDragAndResize(canvasId) {
+    const box = document.getElementById(`ws-box-${canvasId}`);
+    const resizeHandle = document.getElementById(`ws-resize-${canvasId}`);
+    const layer = document.getElementById(`ws-img-layer-${canvasId}`);
+    const wrap = layer?.parentElement;
+
+    if (!box || !wrap) return;
+
+    let isDragging = false;
+    let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+    const onPointerDownDrag = (e) => {
+      const item = this.data[canvasId];
+      if (!item || item.isLocked) return;
+      if (e.target.closest('.ws-img-btn') || e.target.classList.contains('ws-img-resize-handle')) return;
+
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = item.x;
+      startTop = item.y;
+      box.style.cursor = 'grabbing';
+      try { box.setPointerCapture(e.pointerId); } catch(err){}
+      e.stopPropagation();
+    };
+
+    const onPointerMoveDrag = (e) => {
+      if (!isDragging) return;
+      const item = this.data[canvasId];
+      if (!item) return;
+
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      const wrapRect = wrap.getBoundingClientRect();
+      const maxLeft = Math.max(0, wrapRect.width - item.width);
+      const maxTop = Math.max(0, wrap.clientHeight - item.height);
+
+      item.x = Math.max(0, Math.min(maxLeft, startLeft + dx));
+      item.y = Math.max(0, Math.min(maxTop, startTop + dy));
+
+      box.style.left = item.x + 'px';
+      box.style.top = item.y + 'px';
+      e.stopPropagation();
+    };
+
+    const onPointerUpDrag = (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      box.style.cursor = 'grab';
+      this.save(canvasId);
+      e.stopPropagation();
+    };
+
+    box.addEventListener('pointerdown', onPointerDownDrag);
+    window.addEventListener('pointermove', onPointerMoveDrag);
+    window.addEventListener('pointerup', onPointerUpDrag);
+
+    if (resizeHandle) {
+      let isResizing = false;
+      let startW = 0, startH = 0, startMouseX = 0;
+
+      resizeHandle.addEventListener('pointerdown', (e) => {
+        const item = this.data[canvasId];
+        if (!item || item.isLocked) return;
+        isResizing = true;
+        startMouseX = e.clientX;
+        startW = item.width;
+        startH = item.height;
+        try { resizeHandle.setPointerCapture(e.pointerId); } catch(err){}
+        e.stopPropagation();
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (!isResizing) return;
+        const item = this.data[canvasId];
+        if (!item) return;
+
+        const delta = e.clientX - startMouseX;
+        const newW = Math.max(80, Math.min(wrap.clientWidth - item.x, startW + delta));
+        const newH = newW / (item.aspectRatio || 1);
+
+        item.width = Math.round(newW);
+        item.height = Math.round(newH);
+
+        box.style.width = item.width + 'px';
+        box.style.height = item.height + 'px';
+        e.stopPropagation();
+      });
+
+      window.addEventListener('pointerup', (e) => {
+        if (!isResizing) return;
+        isResizing = false;
+        this.save(canvasId);
+        e.stopPropagation();
+      });
+    }
+  },
+
+  scale(canvasId, factor) {
+    const item = this.data[canvasId];
+    if (!item) return;
+    const box = document.getElementById(`ws-box-${canvasId}`);
+    const layer = document.getElementById(`ws-img-layer-${canvasId}`);
+    const maxW = layer?.parentElement ? layer.parentElement.clientWidth : 800;
+
+    const newW = Math.max(80, Math.min(maxW, item.width * factor));
+    const newH = newW / (item.aspectRatio || 1);
+
+    item.width = Math.round(newW);
+    item.height = Math.round(newH);
+
+    if (box) {
+      box.style.width = item.width + 'px';
+      box.style.height = item.height + 'px';
+    }
+    this.save(canvasId);
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  toggleLock(canvasId) {
+    const item = this.data[canvasId];
+    if (!item) return;
+    item.isLocked = !item.isLocked;
+    this.renderBox(canvasId);
+    this.save(canvasId);
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  remove(canvasId) {
+    if (confirm('Delete this inserted diagram from the solution area?')) {
+      delete this.data[canvasId];
+      this.save(canvasId);
+      this.renderBox(canvasId);
+      if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+    }
+  }
+};
+
+function triggerWorkspaceImageUpload(canvasId) {
+  const input = document.getElementById(`input-img-${canvasId}`);
+  if (input) input.click();
+}
+
+function handleWorkspaceImageUpload(canvasId, event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const imgEl = new Image();
+    imgEl.onload = () => {
+      const wrap = document.getElementById(`ws-img-layer-${canvasId}`)?.parentElement;
+      const wrapW = wrap ? wrap.clientWidth : 500;
+      const initialW = Math.min(360, wrapW * 0.7);
+      const ratio = imgEl.naturalWidth / imgEl.naturalHeight || 1;
+      const initialH = initialW / ratio;
+
+      WorkspaceImages.data[canvasId] = {
+        src: e.target.result,
+        x: 20,
+        y: 20,
+        width: Math.round(initialW),
+        height: Math.round(initialH),
+        aspectRatio: ratio,
+        isLocked: false
+      };
+
+      WorkspaceImages.save(canvasId);
+      WorkspaceImages.renderBox(canvasId);
+      if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
+    };
+    imgEl.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function toggleWorkspaceImageEdit(canvasId, btn) {
+  const item = WorkspaceImages.data[canvasId];
+  if (!item) return;
+  item.isLocked = !item.isLocked;
+  WorkspaceImages.renderBox(canvasId);
+  WorkspaceImages.save(canvasId);
+  if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+}
+
 function renderWorkspaceWidget(canvasId, wrapId) {
   return `
     <div class="notebook-workspace" id="ws-${canvasId}">
+      <!-- 1. Solution Canvas Surface (Top) -->
+      <div class="notebook-canvas-wrap" id="${wrapId}">
+        <canvas id="${canvasId}" class="stylus-canvas"></canvas>
+        <textarea id="${canvasId.replace('can-', 'text-')}" class="typed-text-layer" placeholder="Type your step-by-step mathematical derivation here..."></textarea>
+        <!-- Dynamic Inserted Image Box Container -->
+        <div class="ws-image-layer" id="ws-img-layer-${canvasId}"></div>
+      </div>
+
+      <!-- 2. Stylus & Solution Toolbar (Below Solution Area) -->
       <div class="stylus-toolbar">
         <!-- Row 1: Drawing & Mathematical Shape Tools + Quick Utilities -->
         <div class="toolbar-row toolbar-row-top">
@@ -2996,6 +3682,16 @@ function renderWorkspaceWidget(canvasId, wrapId) {
           </div>
 
           <div class="toolbar-group">
+            <!-- Insert & Control Image inside Solution Area -->
+            <button class="tool-btn btn-ws-img" onclick="triggerWorkspaceImageUpload('${canvasId}')" title="Add Diagram / Image to Solution Workspace">
+              <i class="fa-solid fa-image"></i> Image
+            </button>
+            <input type="file" id="input-img-${canvasId}" accept="image/*" style="display:none;" onchange="handleWorkspaceImageUpload('${canvasId}', event)">
+
+            <button class="tool-btn btn-ws-img-move" id="btn-img-move-${canvasId}" style="display:none;" onclick="toggleWorkspaceImageEdit('${canvasId}', this)" title="Move & Resize Inserted Image">
+              <i class="fa-solid fa-arrows-up-down-left-right"></i> Move Image
+            </button>
+
             <button class="tool-btn" onclick="toggleCanvasGrid('${wrapId}', this)" title="Grid / Graph Paper Overlay">
               <i class="fa-solid fa-border-all"></i> Grid
             </button>
@@ -3035,12 +3731,7 @@ function renderWorkspaceWidget(canvasId, wrapId) {
         </div>
       </div>
 
-      <div class="notebook-canvas-wrap" id="${wrapId}">
-        <canvas id="${canvasId}" class="stylus-canvas"></canvas>
-        <textarea id="${canvasId.replace('can-', 'text-')}" class="typed-text-layer" placeholder="Type your step-by-step mathematical derivation here..."></textarea>
-      </div>
-
-      <!-- Canvas Height Expansion / Shrink Controls -->
+      <!-- 3. Canvas Height Expansion / Shrink Controls (Bottom) -->
       <div class="workspace-resize-bar">
         <div class="resize-drag-indicator">
           <i class="fa-solid fa-arrows-up-down"></i> <span>Drag Bar to Resize Workspace Vertically</span>

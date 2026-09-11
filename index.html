@@ -92,23 +92,6 @@
           <span>Share Lesson</span>
         </button>
 
-        <!-- Infinite Canvas Whiteboard Mode Toggle -->
-        <button id="infiniteWhiteboardBtn" class="btn-3d btn-whiteboard-3d" onclick="InfiniteWhiteboard.open()" title="Open Infinite Canvas Whiteboard for Math Teaching">
-          <i class="fa-solid fa-infinity"></i>
-          <span>Whiteboard</span>
-        </button>
-
-        <!-- Full-Screen iPad Screen Pen Mode Toggle -->
-        <button id="fullscreenPenBtn" class="btn-3d btn-stylus-mode" title="Activate Full-Screen iPad Pen Mode">
-          <i class="fa-solid fa-pen-nib"></i>
-          <span>iPad Screen Pen</span>
-        </button>
-
-        <!-- Studio Video Recording Mode Toggle -->
-        <button id="studioModeBtn" class="btn-3d btn-studio-mode" onclick="toggleStudioMode()" title="Studio Mode (Distraction-Free Video Recording)">
-          <i class="fa-solid fa-video"></i>
-          <span>Studio Mode</span>
-        </button>
 
         <!-- Import / Upload New Lesson Button -->
         <button id="importLessonBtn" class="icon-btn-3d" title="Import Lesson from Image/PDF">
@@ -344,14 +327,12 @@
 
     <!-- Floating Stylus Dock -->
     <div class="floating-stylus-dock">
-      <div class="dock-timer-badge" id="dockStopwatch">⏱️ 00:00</div>
-
       <div class="toolbar-group">
-        <div class="color-dot active" style="background:#6c5ce7;" onclick="setFsPenColor('#6c5ce7', this)"></div>
-        <div class="color-dot" style="background:#eb4d4b;" onclick="setFsPenColor('#eb4d4b', this)"></div>
-        <div class="color-dot" style="background:#00b894;" onclick="setFsPenColor('#00b894', this)"></div>
-        <div class="color-dot" style="background:#182038;" onclick="setFsPenColor('#182038', this)"></div>
-        <div class="color-dot" style="background:#fdcb6e;" onclick="setFsPenColor('#fdcb6e', this)"></div>
+        <div class="color-dot active" style="background:#6c5ce7;" onclick="setFsPenColor('#6c5ce7', this)" title="Purple"></div>
+        <div class="color-dot" style="background:#eb4d4b;" onclick="setFsPenColor('#eb4d4b', this)" title="Red"></div>
+        <div class="color-dot" style="background:#00b894;" onclick="setFsPenColor('#00b894', this)" title="Green"></div>
+        <div class="color-dot" style="background:#182038;" onclick="setFsPenColor('#182038', this)" title="Navy"></div>
+        <div class="color-dot" style="background:#fdcb6e;" onclick="setFsPenColor('#fdcb6e', this)" title="Yellow"></div>
       </div>
 
       <div class="toolbar-group">
@@ -373,10 +354,10 @@
       </div>
 
       <div class="toolbar-group">
-        <select class="stroke-select" onchange="setFsPenWidth(this.value)">
-          <option value="3">Fine 3px</option>
-          <option value="6" selected>Medium 6px</option>
-          <option value="12">Highlighter 12px</option>
+        <select class="stroke-select" onchange="setFsPenWidth(this.value)" title="Stroke Width">
+          <option value="3">3px</option>
+          <option value="6" selected>6px</option>
+          <option value="12">12px</option>
         </select>
 
         <button class="tool-btn" id="btnFsEraser" onclick="toggleFsEraser()" title="Eraser">
@@ -384,23 +365,23 @@
         </button>
 
         <button class="tool-btn btn-undo" id="btnFsUndo" onclick="undoFsCanvas()" title="Undo last stroke">
-          <i class="fa-solid fa-rotate-left"></i> Undo
+          <i class="fa-solid fa-rotate-left"></i>
         </button>
 
         <button class="tool-btn btn-export-board" onclick="exportFsCanvasImage()" title="Save Board as PNG">
-          <i class="fa-solid fa-camera"></i> Save
+          <i class="fa-solid fa-camera"></i>
         </button>
 
         <button class="tool-btn stylus-indicator active" onclick="toggleStylusMode(this)" title="Stylus Only (Palm Rejection Active)">
-          <i class="fa-solid fa-pen-nib"></i> <span class="stylus-mode-text">Stylus Only</span>
+          <i class="fa-solid fa-pen-nib"></i>
         </button>
 
         <button class="tool-btn" onclick="clearFsCanvas()" title="Clear screen">
           <i class="fa-solid fa-trash-can"></i>
         </button>
 
-        <button class="tool-btn" style="background:#eb4d4b; color:#fff;" onclick="exitFsPenMode()">
-          <i class="fa-solid fa-xmark"></i> Exit Pen
+        <button class="tool-btn btn-fs-exit" id="btnFsExit" onclick="exitFsPenMode()" title="Exit Screen Writing">
+          <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
     </div>
@@ -438,8 +419,8 @@
 
       <!-- Quick Actions -->
       <div class="wb-top-actions">
-        <button class="wb-btn-sm" onclick="InfiniteWhiteboard.cycleGrid()" id="wbGridToggleBtn" title="Toggle Grid Mode">
-          <i class="fa-solid fa-border-none"></i> <span id="wbGridLabel">Math Grid</span>
+        <button class="wb-btn-sm" onclick="InfiniteWhiteboard.cycleGrid()" id="wbGridToggleBtn" title="Toggle Light / Dark Board">
+          <i class="fa-solid fa-chalkboard"></i> <span id="wbGridLabel">Light Board</span>
         </button>
         <button class="wb-btn-sm" onclick="InfiniteWhiteboard.exportPNG()" title="Save High-Res PNG">
           <i class="fa-solid fa-camera"></i> <span>Export</span>
@@ -450,82 +431,103 @@
       </div>
     </div>
 
+    <!-- Floating Image Toolbar (Controls moving, resizing, and deleting uploaded images) -->
+    <div class="wb-image-toolbar" id="wbImageToolbar" style="display: none;">
+      <span class="wb-img-tb-label"><i class="fa-solid fa-image"></i> Image</span>
+      <button class="wb-img-tb-btn" onclick="InfiniteWhiteboard.scaleSelectedImage(1.15)" title="Enlarge (+15%)">
+        <i class="fa-solid fa-magnifying-glass-plus"></i>
+      </button>
+      <button class="wb-img-tb-btn" onclick="InfiniteWhiteboard.scaleSelectedImage(0.85)" title="Shrink (-15%)">
+        <i class="fa-solid fa-magnifying-glass-minus"></i>
+      </button>
+      <button class="wb-img-tb-btn" onclick="InfiniteWhiteboard.centerSelectedImage()" title="Center in View">
+        <i class="fa-solid fa-crosshairs"></i>
+      </button>
+      <button class="wb-img-tb-btn wb-img-tb-danger" onclick="InfiniteWhiteboard.deleteSelectedImage()" title="Delete Image">
+        <i class="fa-solid fa-trash-can"></i>
+      </button>
+      <button class="wb-img-tb-btn wb-img-tb-done" onclick="InfiniteWhiteboard.deselectImage()" title="Done (Lock Image)">
+        <i class="fa-solid fa-check"></i>
+      </button>
+    </div>
+
     <!-- Main Floating Bottom Control Dock -->
     <div class="wb-floating-dock" id="wbFloatingDock">
-      <!-- Stylus Only Dedicated Mode Button -->
-      <button class="wb-dock-btn wb-stylus-toggle active" id="wbStylusOnlyBtn" onclick="InfiniteWhiteboard.toggleStylusOnly()" title="Stylus Only: Fingers Pan/Zoom, Pen strictly writes">
-        <i class="fa-solid fa-hand"></i>
-        <span class="wb-stylus-btn-text">Stylus Only: ON</span>
-      </button>
-
-      <div class="wb-dock-divider"></div>
-
-      <!-- Math Color Palette -->
-      <div class="wb-color-group">
-        <button class="wb-color-circle active" style="--c:#ffffff;" onclick="InfiniteWhiteboard.setColor('#ffffff', this)" title="Pure White"></button>
-        <button class="wb-color-circle" style="--c:#fed330;" onclick="InfiniteWhiteboard.setColor('#fed330', this)" title="Golden Math Yellow"></button>
-        <button class="wb-color-circle" style="--c:#00d2d3;" onclick="InfiniteWhiteboard.setColor('#00d2d3', this)" title="Electric Cyan"></button>
-        <button class="wb-color-circle" style="--c:#ff6b6b;" onclick="InfiniteWhiteboard.setColor('#ff6b6b', this)" title="Vivid Coral"></button>
-        <button class="wb-color-circle" style="--c:#2ed573;" onclick="InfiniteWhiteboard.setColor('#2ed573', this)" title="Neon Green"></button>
-        <button class="wb-color-circle" style="--c:#a55eea;" onclick="InfiniteWhiteboard.setColor('#a55eea', this)" title="Purple Violet"></button>
+      <!-- 4 Primary Adaptive Colors (Dark/Light mode responsive) -->
+      <div class="wb-color-group" id="wbColorGroup">
+        <button class="wb-color-circle active" id="wbColor1" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 1"></button>
+        <button class="wb-color-circle" id="wbColor2" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 2"></button>
+        <button class="wb-color-circle" id="wbColor3" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 3"></button>
+        <button class="wb-color-circle" id="wbColor4" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 4"></button>
       </div>
 
       <div class="wb-dock-divider"></div>
 
-      <!-- Stroke Thicknesses -->
+      <!-- Stroke Thicknesses (Pen Size Control) -->
       <div class="wb-stroke-group">
-        <button class="wb-stroke-btn" data-width="2" onclick="InfiniteWhiteboard.setWidth(2, this)" title="Fine 2px">
+        <button class="wb-stroke-btn" onclick="InfiniteWhiteboard.stepWidth(-2)" title="Decrease Pen Size (-)">
+          <i class="fa-solid fa-minus" style="font-size:0.65rem;"></i>
+        </button>
+        <button class="wb-stroke-btn" data-width="3" onclick="InfiniteWhiteboard.setWidth(3, this)" title="Fine 3px">
           <span style="width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block;"></span>
         </button>
-        <button class="wb-stroke-btn active" data-width="5" onclick="InfiniteWhiteboard.setWidth(5, this)" title="Normal 5px">
-          <span style="width:8px; height:8px; border-radius:50%; background:currentColor; display:inline-block;"></span>
+        <button class="wb-stroke-btn active" data-width="6" onclick="InfiniteWhiteboard.setWidth(6, this)" title="Medium 6px">
+          <span style="width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block;"></span>
         </button>
-        <button class="wb-stroke-btn" data-width="10" onclick="InfiniteWhiteboard.setWidth(10, this)" title="Bold 10px">
-          <span style="width:14px; height:14px; border-radius:50%; background:currentColor; display:inline-block;"></span>
+        <button class="wb-stroke-btn" data-width="12" onclick="InfiniteWhiteboard.setWidth(12, this)" title="Bold 12px">
+          <span style="width:11px; height:11px; border-radius:50%; background:currentColor; display:inline-block;"></span>
         </button>
-        <button class="wb-stroke-btn" data-width="24" onclick="InfiniteWhiteboard.setWidth(24, this)" title="Highlighter 24px">
-          <i class="fa-solid fa-highlighter"></i>
+        <button class="wb-stroke-btn" onclick="InfiniteWhiteboard.stepWidth(2)" title="Increase Pen Size (+)">
+          <i class="fa-solid fa-plus" style="font-size:0.65rem;"></i>
         </button>
       </div>
 
       <div class="wb-dock-divider"></div>
 
-      <!-- Tools Group -->
+      <!-- Drawing & Geometric Tools -->
       <div class="wb-tools-group">
-        <button class="wb-dock-btn active" id="wbToolPen" onclick="InfiniteWhiteboard.setTool('pen', this)" title="Freehand Pen (P)">
+        <button class="wb-dock-btn active" id="wbToolPen" onclick="InfiniteWhiteboard.setTool('pen', this)" title="Pen">
           <i class="fa-solid fa-pen"></i>
         </button>
-        <button class="wb-dock-btn" id="wbToolLine" onclick="InfiniteWhiteboard.setTool('line', this)" title="Straight Ruler Line (L)">
+        <button class="wb-dock-btn" id="wbToolLine" onclick="InfiniteWhiteboard.setTool('line', this)" title="Straight Ruler Line">
           <i class="fa-solid fa-ruler"></i>
         </button>
-        <button class="wb-dock-btn" id="wbToolRect" onclick="InfiniteWhiteboard.setTool('rect', this)" title="Rectangle (R)">
+        <button class="wb-dock-btn" id="wbToolRect" onclick="InfiniteWhiteboard.setTool('rect', this)" title="Rectangle / Box">
           <i class="fa-regular fa-square"></i>
         </button>
-        <button class="wb-dock-btn" id="wbToolCircle" onclick="InfiniteWhiteboard.setTool('circle', this)" title="Circle / Ellipse (C)">
+        <button class="wb-dock-btn" id="wbToolCircle" onclick="InfiniteWhiteboard.setTool('circle', this)" title="Circle / Ellipse">
           <i class="fa-regular fa-circle"></i>
         </button>
-        <button class="wb-dock-btn" id="wbToolAxis" onclick="InfiniteWhiteboard.setTool('axis', this)" title="Coordinate Axes X-Y (A)">
+        <button class="wb-dock-btn" id="wbToolAxis" onclick="InfiniteWhiteboard.setTool('axis', this)" title="Coordinate Axes">
           <i class="fa-solid fa-chart-line"></i>
         </button>
-        <button class="wb-dock-btn" id="wbToolEraser" onclick="InfiniteWhiteboard.setTool('eraser', this)" title="Eraser (E)">
+        <button class="wb-dock-btn" id="wbToolEraser" onclick="InfiniteWhiteboard.setTool('eraser', this)" title="Eraser">
           <i class="fa-solid fa-eraser"></i>
         </button>
-        <button class="wb-dock-btn" id="wbToolHand" onclick="InfiniteWhiteboard.setTool('hand', this)" title="Hand / Pan Tool (H)">
-          <i class="fa-solid fa-hand"></i>
+        <button class="wb-dock-btn" id="wbToolSelect" onclick="InfiniteWhiteboard.setTool('select', this)" title="Select / Move Image">
+          <i class="fa-solid fa-arrow-pointer"></i>
         </button>
       </div>
+
+      <div class="wb-dock-divider"></div>
+
+      <!-- Image Import & Control -->
+      <button class="wb-dock-btn" id="wbToolImageUpload" onclick="InfiniteWhiteboard.triggerImageUpload()" title="Insert Image / Diagram onto Whiteboard">
+        <i class="fa-solid fa-image"></i>
+      </button>
+      <input type="file" id="wbImageFileInput" accept="image/*" style="display:none;" onchange="InfiniteWhiteboard.handleImageUpload(event)">
 
       <div class="wb-dock-divider"></div>
 
       <!-- Actions Group -->
       <div class="wb-actions-group">
-        <button class="wb-dock-btn" onclick="InfiniteWhiteboard.undo()" title="Undo (Ctrl+Z)">
+        <button class="wb-dock-btn" onclick="InfiniteWhiteboard.undo()" title="Undo">
           <i class="fa-solid fa-rotate-left"></i>
         </button>
-        <button class="wb-dock-btn" onclick="InfiniteWhiteboard.redo()" title="Redo (Ctrl+Y)">
+        <button class="wb-dock-btn" onclick="InfiniteWhiteboard.redo()" title="Redo">
           <i class="fa-solid fa-rotate-right"></i>
         </button>
-        <button class="wb-dock-btn wb-btn-danger" onclick="InfiniteWhiteboard.clear()" title="Clear Entire Whiteboard">
+        <button class="wb-dock-btn wb-btn-danger" onclick="InfiniteWhiteboard.clear()" title="Clear Board (Manual only)">
           <i class="fa-solid fa-trash-can"></i>
         </button>
       </div>
@@ -785,15 +787,24 @@
   <!-- App Core JavaScript Logic -->
   <script src="app.js?v=20260909_3"></script>
 
-  <!-- Floating Screen Pen Action Button (Always Accessible for Screen Writing) -->
-  <button id="floatingScreenPenFab" class="floating-screen-pen-fab" onclick="FullScreenPen.toggle()" title="Write on Screen (iPad Screen Pen)">
-    <i class="fa-solid fa-pen-nib"></i>
-    <span>Write on Screen</span>
+  <!-- Floating Studio Mode Action Button (Positioned at top of vertical stack: bottom 120px) -->
+  <button id="floatingStudioModeFab" class="floating-studio-fab" onclick="toggleStudioMode()" title="Studio Mode (Distraction-Free Video Recording)">
+    <i class="fa-solid fa-video"></i>
   </button>
 
-  <!-- Floating Studio Mode Exit Button -->
-  <button class="exit-studio-btn" onclick="toggleStudioMode()" title="Exit Studio Video Mode">
-    <i class="fa-solid fa-compress"></i> Exit Studio Mode
+  <!-- Floating Whiteboard Action Button (Positioned in middle of vertical stack: bottom 70px) -->
+  <button id="floatingWhiteboardFab" class="floating-whiteboard-fab" onclick="InfiniteWhiteboard.open()" title="Open Infinite Whiteboard">
+    <i class="fa-solid fa-infinity"></i>
+  </button>
+
+  <!-- Floating Screen Pen Action Button (Positioned at bottom of vertical stack: bottom 20px) -->
+  <button id="floatingScreenPenFab" class="floating-screen-pen-fab" onclick="FullScreenPen.toggle()" title="Write on Screen (iPad Screen Pen)">
+    <i class="fa-solid fa-pen-nib"></i>
+  </button>
+
+  <!-- Floating Studio Mode Exit Button (Same position as Studio FAB: bottom 120px) -->
+  <button class="exit-studio-btn" id="exitStudioBtn" onclick="toggleStudioMode()" title="Exit Studio Video Mode">
+    <i class="fa-solid fa-compress"></i>
   </button>
 </body>
 </html>
