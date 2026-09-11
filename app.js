@@ -1755,6 +1755,78 @@ const InfiniteWhiteboard = {
       circles[0].classList.add('active');
       this.color = palette[0].color;
     }
+    this.updateActiveColorIndicator();
+  },
+
+  // Popover Toggles for Compact Floating Dock
+  toggleShapesPopover(event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const pop = document.getElementById('wbShapesPopover');
+    const wrap = pop?.closest('.wb-dropdown-wrap');
+    const isOpen = pop?.classList.contains('open');
+    this.closeAllPopovers();
+    if (!isOpen && pop) {
+      pop.classList.add('open');
+      wrap?.classList.add('open');
+    }
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  toggleColorPopover(event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const pop = document.getElementById('wbColorPopover');
+    const wrap = pop?.closest('.wb-dropdown-wrap');
+    const isOpen = pop?.classList.contains('open');
+    this.closeAllPopovers();
+    if (!isOpen && pop) {
+      pop.classList.add('open');
+      wrap?.classList.add('open');
+    }
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  toggleStrokePopover(event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const pop = document.getElementById('wbStrokePopover');
+    const wrap = pop?.closest('.wb-dropdown-wrap');
+    const isOpen = pop?.classList.contains('open');
+    this.closeAllPopovers();
+    if (!isOpen && pop) {
+      pop.classList.add('open');
+      wrap?.classList.add('open');
+    }
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  closeAllPopovers() {
+    document.querySelectorAll('.wb-popover-menu.open').forEach(p => p.classList.remove('open'));
+    document.querySelectorAll('.wb-dropdown-wrap.open').forEach(w => w.classList.remove('open'));
+  },
+
+  updateActiveColorIndicator() {
+    const dot = document.getElementById('wbActiveColorIndicator');
+    if (dot) {
+      dot.style.backgroundColor = this.color;
+      dot.style.setProperty('--active-wb-color', this.color);
+    }
+  },
+
+  updateActiveStrokeIndicator() {
+    const dot = document.getElementById('wbActiveStrokeIndicator');
+    if (dot) {
+      const sizePx = Math.max(3, Math.min(14, this.strokeWidth));
+      dot.style.width = sizePx + 'px';
+      dot.style.height = sizePx + 'px';
+    }
   },
 
   init() {
@@ -1777,11 +1849,25 @@ const InfiniteWhiteboard = {
       }
     });
 
-    // Safari iOS native gesture prevention (preserves pointer event flow)
+    // Safari iOS native gesture & callout prevention
     const preventGesture = (e) => e.preventDefault();
     this.canvas.addEventListener('gesturestart', preventGesture, { passive: false });
     this.canvas.addEventListener('gesturechange', preventGesture, { passive: false });
     this.canvas.addEventListener('gestureend', preventGesture, { passive: false });
+
+    // Suppress context menu & selection gestures on canvas
+    this.canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }, { passive: false });
+    this.canvas.addEventListener('selectstart', preventGesture, { passive: false });
+
+    // Touch listeners on canvas with passive: false to prevent Safari tap-and-hold magnifier / text callout
+    this.canvas.addEventListener('touchstart', preventGesture, { passive: false });
+    this.canvas.addEventListener('touchmove', preventGesture, { passive: false });
+    this.canvas.addEventListener('touchend', preventGesture, { passive: false });
+    this.canvas.addEventListener('touchcancel', preventGesture, { passive: false });
 
     // Touch & Pointer Bindings with passive: false
     this.canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e), { passive: false });
@@ -1802,6 +1888,23 @@ const InfiniteWhiteboard = {
       if (this.isOpen) e.preventDefault();
     }, { capture: true });
 
+    // Strict iOS Safari text selection & callout menu suppression
+    document.addEventListener('selectionchange', () => {
+      if (this.isOpen) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          sel.removeAllRanges();
+        }
+      }
+    });
+
+    // Close popovers when clicking outside the floating dock
+    document.addEventListener('pointerdown', (e) => {
+      if (this.isOpen && !e.target.closest('.wb-dropdown-wrap') && !e.target.closest('.wb-popover-menu')) {
+        this.closeAllPopovers();
+      }
+    });
+
     // Keyboard Shortcuts
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
 
@@ -1810,6 +1913,8 @@ const InfiniteWhiteboard = {
 
     // Update UI elements
     this.updateColorsUI();
+    this.updateActiveColorIndicator();
+    this.updateActiveStrokeIndicator();
     this.updateStylusIndicator();
     this.updateZoomDisplay();
   },
@@ -1825,16 +1930,21 @@ const InfiniteWhiteboard = {
 
   open() {
     this.isOpen = true;
+    document.body.classList.add('whiteboard-active');
     if (this.overlay) this.overlay.classList.add('active');
     this.resize();
     this.updateColorsUI();
+    this.updateActiveColorIndicator();
+    this.updateActiveStrokeIndicator();
     this.render();
     if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
   },
 
   close() {
     this.isOpen = false;
+    document.body.classList.remove('whiteboard-active');
     if (this.overlay) this.overlay.classList.remove('active');
+    this.closeAllPopovers();
     this.hideImageToolbar();
     this.activeTouches.clear();
     this.isPenDrawing = false;
@@ -1872,6 +1982,19 @@ const InfiniteWhiteboard = {
   // Pointer Down
   onPointerDown(e) {
     e.preventDefault();
+    try {
+      if (window.getSelection) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) sel.removeAllRanges();
+      }
+    } catch (_) {}
+    this.closeAllPopovers();
+
+    // Capture pointer events for this pointerId so iOS gestures/callouts don't intercept
+    try {
+      this.canvas.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
     const pt = this.getCanvasPoint(e);
     const worldPt = this.screenToWorld(pt.x, pt.y);
 
@@ -2092,6 +2215,9 @@ const InfiniteWhiteboard = {
   // Pointer Up
   onPointerUp(e) {
     e.preventDefault();
+    try {
+      this.canvas.releasePointerCapture(e.pointerId);
+    } catch (_) {}
 
     if (this.isMovingImage || this.isResizingImage) {
       this.isMovingImage = false;
@@ -2138,10 +2264,14 @@ const InfiniteWhiteboard = {
   },
 
   onPointerCancel(e) {
+    try {
+      this.canvas.releasePointerCapture(e.pointerId);
+    } catch (_) {}
     if (e.pointerType === 'pen') {
       this.lastPenTime = Date.now();
-      if (e.buttons === 0) {
-        this.onPointerUp(e);
+      if (this.isPenDrawing) {
+        this.finishDrawing();
+        this.isPenDrawing = false;
       }
       return;
     }
@@ -2678,6 +2808,7 @@ const InfiniteWhiteboard = {
 
   setColor(col, btn) {
     this.color = col;
+    this.updateActiveColorIndicator();
     if (this.activeTool === 'eraser' || this.activeTool === 'select') {
       this.setTool('pen', document.getElementById('wbToolPen'));
     }
@@ -2686,12 +2817,14 @@ const InfiniteWhiteboard = {
       wrap.querySelectorAll('.wb-color-circle').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
+    this.closeAllPopovers();
     this.saveToStorage();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
 
   setWidth(w, btn) {
     this.strokeWidth = parseInt(w, 10);
+    this.updateActiveStrokeIndicator();
     const dock = document.getElementById('wbFloatingDock');
     if (dock) {
       dock.querySelectorAll('.wb-stroke-btn').forEach(b => {
@@ -2706,6 +2839,7 @@ const InfiniteWhiteboard = {
       dock?.querySelectorAll('.wb-stroke-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
+    this.closeAllPopovers();
     this.saveToStorage();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
@@ -2718,10 +2852,36 @@ const InfiniteWhiteboard = {
   setTool(tool, btn) {
     this.activeTool = tool;
     const dock = document.getElementById('wbFloatingDock');
+    const shapeTrigger = document.getElementById('wbShapesTrigger');
+    const shapeIcon = document.getElementById('wbActiveShapeIcon');
+    const penBtn = document.getElementById('wbToolPen');
+    const eraserBtn = document.getElementById('wbToolEraser');
+
+    // Deselect / select direct tool buttons
+    if (penBtn) penBtn.classList.toggle('active', tool === 'pen');
+    if (eraserBtn) eraserBtn.classList.toggle('active', tool === 'eraser');
+
+    // Handle shapes
+    const shapeTools = ['line', 'rect', 'circle', 'axis', 'select'];
+    const isShape = shapeTools.includes(tool);
+    if (shapeTrigger) shapeTrigger.classList.toggle('active', isShape);
+
     if (dock) {
-      dock.querySelectorAll('.wb-tools-group .wb-dock-btn').forEach(b => b.classList.remove('active'));
+      dock.querySelectorAll('.wb-popover-btn').forEach(b => b.classList.remove('active'));
     }
-    if (btn) btn.classList.add('active');
+    if (btn && btn.classList.contains('wb-popover-btn')) {
+      btn.classList.add('active');
+    }
+
+    // Update shape trigger icon if a shape tool is chosen
+    if (shapeIcon) {
+      if (tool === 'line') shapeIcon.className = 'fa-solid fa-ruler';
+      else if (tool === 'rect') shapeIcon.className = 'fa-regular fa-square';
+      else if (tool === 'circle') shapeIcon.className = 'fa-regular fa-circle';
+      else if (tool === 'axis') shapeIcon.className = 'fa-solid fa-chart-line';
+      else if (tool === 'select') shapeIcon.className = 'fa-solid fa-arrow-pointer';
+      else shapeIcon.className = 'fa-solid fa-shapes';
+    }
 
     if (this.canvas) {
       this.canvas.classList.toggle('cursor-hand', tool === 'hand');
@@ -2732,6 +2892,7 @@ const InfiniteWhiteboard = {
         this.deselectImage();
       }
     }
+    this.closeAllPopovers();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   },
 
