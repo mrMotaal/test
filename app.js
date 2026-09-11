@@ -3994,10 +3994,9 @@ function renderWorkspaceWidget(canvasId, wrapId) {
         <div class="ws-image-layer" id="ws-img-layer-${canvasId}"></div>
       </div>
 
-      <!-- 2. Stylus & Solution Toolbar (Below Solution Area) -->
+      <!-- 2. Stylus & Solution Toolbar (Below Solution Area - Unified Single Line) -->
       <div class="stylus-toolbar">
-        <!-- Row 1: Drawing & Mathematical Shape Tools + Quick Utilities -->
-        <div class="toolbar-row toolbar-row-top">
+        <div class="toolbar-row single-toolbar-row">
           <div class="toolbar-group">
             <button class="tool-btn active" onclick="setCanvasTool('${canvasId}', 'pen', this)" title="Pen Tool">
               <i class="fa-solid fa-pen"></i> Pen
@@ -4039,31 +4038,9 @@ function renderWorkspaceWidget(canvasId, wrapId) {
             </button>
           </div>
 
-          <div class="toolbar-group">
-            <!-- Insert & Control Image inside Solution Area -->
-            <button class="tool-btn btn-ws-img" onclick="triggerWorkspaceImageUpload('${canvasId}')" title="Add Diagram / Image to Solution Workspace">
-              <i class="fa-solid fa-image"></i> Image
-            </button>
-            <input type="file" id="input-img-${canvasId}" accept="image/*" style="display:none;" onchange="handleWorkspaceImageUpload('${canvasId}', event)">
+          <div class="ws-toolbar-divider"></div>
 
-            <button class="tool-btn btn-ws-img-move" id="btn-img-move-${canvasId}" style="display:none;" onclick="toggleWorkspaceImageEdit('${canvasId}', this)" title="Move & Resize Inserted Image">
-              <i class="fa-solid fa-arrows-up-down-left-right"></i> Move Image
-            </button>
-
-            <button class="tool-btn" onclick="toggleCanvasGrid('${wrapId}', this)" title="Grid / Graph Paper Overlay">
-              <i class="fa-solid fa-border-all"></i> Grid
-            </button>
-            <button class="tool-btn btn-export-board" onclick="exportCanvasImage('${canvasId}')" title="Save Board as High-Resolution Image">
-              <i class="fa-solid fa-camera"></i> Save Board
-            </button>
-            <button class="tool-btn stylus-indicator active" onclick="toggleStylusMode(this)" title="Stylus Only Mode (Palm Rejection Active)">
-              <i class="fa-solid fa-pen-nib"></i> <span class="stylus-mode-text">Stylus Only</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Row 2: Color Palette, Stroke Width, Clear & Autosave Status -->
-        <div class="toolbar-row toolbar-row-bottom">
+          <!-- Colors, Thickness & Clear on the Same Line -->
           <div class="toolbar-group">
             <div class="color-dot active" style="background:#182038;" onclick="setCanvasColor('${canvasId}', '#182038', this)" title="Navy Black"></div>
             <div class="color-dot" style="background:#6c5ce7;" onclick="setCanvasColor('${canvasId}', '#6c5ce7', this)" title="Purple"></div>
@@ -4077,23 +4054,15 @@ function renderWorkspaceWidget(canvasId, wrapId) {
               <option value="7">Bold 7px</option>
             </select>
 
-            <button class="tool-btn" onclick="clearCanvasPrompt('${canvasId}')" title="Clear Canvas">
+            <button class="tool-btn btn-clear-canvas" onclick="clearCanvasPrompt('${canvasId}')" title="Clear Canvas">
               <i class="fa-solid fa-trash-can"></i> Clear
             </button>
-          </div>
-
-          <div class="autosave-indicator">
-            <span class="autosave-dot"></span>
-            <span>Auto-saved to Storage</span>
           </div>
         </div>
       </div>
 
       <!-- 3. Canvas Height Expansion / Shrink Controls (Bottom) -->
       <div class="workspace-resize-bar">
-        <div class="resize-drag-indicator">
-          <i class="fa-solid fa-arrows-up-down"></i> <span>Drag Bar to Resize Workspace Vertically</span>
-        </div>
         <div class="workspace-size-btns">
           <button class="btn-resize-ctrl" onclick="adjustCanvasHeight('${wrapId}', 140)" title="Expand Workspace Height">+ Expand</button>
           <button class="btn-resize-ctrl" onclick="adjustCanvasHeight('${wrapId}', -140)" title="Shrink Workspace Height">- Shrink</button>
