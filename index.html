@@ -393,36 +393,6 @@
   <div class="infinite-whiteboard-overlay" id="infiniteWhiteboardOverlay">
     <canvas id="infiniteWhiteboardCanvas" class="infinite-whiteboard-canvas"></canvas>
 
-    <!-- Top Floating Status & Zoom Bar -->
-    <div class="wb-top-bar">
-      <!-- Zoom & Viewport Controls -->
-      <div class="wb-nav-controls">
-        <button class="wb-btn-sm" onclick="InfiniteWhiteboard.zoomOut()" title="Zoom Out (Ctrl -)">
-          <i class="fa-solid fa-minus"></i>
-        </button>
-        <span class="wb-zoom-badge" id="wbZoomDisplay" onclick="InfiniteWhiteboard.resetView()" title="Click to Reset View to 100%">100%</span>
-        <button class="wb-btn-sm" onclick="InfiniteWhiteboard.zoomIn()" title="Zoom In (Ctrl +)">
-          <i class="fa-solid fa-plus"></i>
-        </button>
-        <button class="wb-btn-sm" onclick="InfiniteWhiteboard.resetView()" title="Reset to Center (0, 0)">
-          <i class="fa-solid fa-arrows-to-dot"></i>
-        </button>
-      </div>
-
-      <!-- Quick Actions -->
-      <div class="wb-top-actions">
-        <button class="wb-btn-sm" onclick="InfiniteWhiteboard.cycleGrid()" id="wbGridToggleBtn" title="Toggle Light / Dark Board">
-          <i class="fa-solid fa-chalkboard"></i> <span id="wbGridLabel">Light Board</span>
-        </button>
-        <button class="wb-btn-sm" onclick="InfiniteWhiteboard.exportPNG()" title="Save High-Res PNG">
-          <i class="fa-solid fa-camera"></i> <span>Export</span>
-        </button>
-        <button class="wb-btn-sm wb-btn-close" onclick="InfiniteWhiteboard.close()" title="Exit Whiteboard (Esc)">
-          <i class="fa-solid fa-xmark"></i> <span>Close</span>
-        </button>
-      </div>
-    </div>
-
     <!-- Floating Image Toolbar (Controls moving, resizing, and deleting uploaded images) -->
     <div class="wb-image-toolbar" id="wbImageToolbar" style="display: none;">
       <span class="wb-img-tb-label"><i class="fa-solid fa-image"></i> Image</span>
@@ -443,9 +413,53 @@
       </button>
     </div>
 
-    <!-- Main Floating Bottom Control Dock (Compact with Flyout Popovers) -->
+    <!-- Main Floating Bottom Control Dock -->
     <div class="wb-floating-dock" id="wbFloatingDock">
-      <!-- Drawing Tools: Pen & Eraser Direct -->
+      <!-- System & Board Control (Close, Theme, Pattern) -->
+      <button class="wb-dock-btn wb-btn-danger-soft" onclick="InfiniteWhiteboard.close()" title="Exit Whiteboard (Esc)">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <button class="wb-dock-btn" id="wbThemeToggleBtn" onclick="InfiniteWhiteboard.cycleGrid()" title="Toggle Light / Dark Board">
+        <i class="fa-solid fa-circle-half-stroke" id="wbThemeIcon"></i>
+      </button>
+      <button class="wb-dock-btn" id="wbPatternToggleBtn" onclick="InfiniteWhiteboard.cyclePattern()" title="Background: Solid / Grid / Lines">
+        <i class="fa-solid fa-border-none" id="wbPatternIcon"></i>
+      </button>
+
+      <div class="wb-dock-divider"></div>
+
+      <!-- 4 Primary Adaptive Writing Colors (Liberated - Directly Visible) -->
+      <div class="wb-color-group" id="wbColorGroup">
+        <button class="wb-color-circle active" id="wbColor1" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 1"></button>
+        <button class="wb-color-circle" id="wbColor2" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 2"></button>
+        <button class="wb-color-circle" id="wbColor3" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 3"></button>
+        <button class="wb-color-circle" id="wbColor4" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 4"></button>
+      </div>
+
+      <div class="wb-dock-divider"></div>
+
+      <!-- Pen Sizes / Stroke Thicknesses (Liberated - Directly Visible) -->
+      <div class="wb-stroke-group">
+        <button class="wb-stroke-btn" onclick="InfiniteWhiteboard.stepWidth(-2)" title="Decrease Pen Size (-)">
+          <i class="fa-solid fa-minus" style="font-size:0.65rem;"></i>
+        </button>
+        <button class="wb-stroke-btn" data-width="3" onclick="InfiniteWhiteboard.setWidth(3, this)" title="Fine (3px)">
+          <span style="width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block;"></span>
+        </button>
+        <button class="wb-stroke-btn active" data-width="6" onclick="InfiniteWhiteboard.setWidth(6, this)" title="Medium (6px)">
+          <span style="width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block;"></span>
+        </button>
+        <button class="wb-stroke-btn" data-width="12" onclick="InfiniteWhiteboard.setWidth(12, this)" title="Bold (12px)">
+          <span style="width:11px; height:11px; border-radius:50%; background:currentColor; display:inline-block;"></span>
+        </button>
+        <button class="wb-stroke-btn" onclick="InfiniteWhiteboard.stepWidth(2)" title="Increase Pen Size (+)">
+          <i class="fa-solid fa-plus" style="font-size:0.65rem;"></i>
+        </button>
+      </div>
+
+      <div class="wb-dock-divider"></div>
+
+      <!-- Tools Group (Pen, Eraser, Shapes flyout, Image) -->
       <button class="wb-dock-btn active" id="wbToolPen" onclick="InfiniteWhiteboard.setTool('pen', this)" title="Pen (P)">
         <i class="fa-solid fa-pen"></i>
       </button>
@@ -453,7 +467,7 @@
         <i class="fa-solid fa-eraser"></i>
       </button>
 
-      <!-- Shapes & Geometry Dropdown Flyout -->
+      <!-- Shapes Dropdown Flyout -->
       <div class="wb-dropdown-wrap">
         <button class="wb-dock-btn wb-dropdown-trigger" id="wbShapesTrigger" onclick="InfiniteWhiteboard.toggleShapesPopover(event)" title="Geometric Tools & Shapes">
           <i class="fa-solid fa-shapes" id="wbActiveShapeIcon"></i>
@@ -478,53 +492,6 @@
         </div>
       </div>
 
-      <div class="wb-dock-divider"></div>
-
-      <!-- Colors Dropdown Flyout -->
-      <div class="wb-dropdown-wrap">
-        <button class="wb-dock-btn wb-dropdown-trigger" id="wbColorTrigger" onclick="InfiniteWhiteboard.toggleColorPopover(event)" title="Pen Color Palette">
-          <span class="wb-active-color-dot" id="wbActiveColorIndicator"></span>
-          <i class="fa-solid fa-caret-up wb-dropdown-caret"></i>
-        </button>
-        <div class="wb-popover-menu wb-color-popover" id="wbColorPopover">
-          <div class="wb-color-group" id="wbColorGroup">
-            <button class="wb-color-circle active" id="wbColor1" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 1"></button>
-            <button class="wb-color-circle" id="wbColor2" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 2"></button>
-            <button class="wb-color-circle" id="wbColor3" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 3"></button>
-            <button class="wb-color-circle" id="wbColor4" onclick="InfiniteWhiteboard.setColor(this.dataset.color, this)" title="Color 4"></button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Stroke / Size Dropdown Flyout -->
-      <div class="wb-dropdown-wrap">
-        <button class="wb-dock-btn wb-dropdown-trigger" id="wbStrokeTrigger" onclick="InfiniteWhiteboard.toggleStrokePopover(event)" title="Pen Size / Stroke Width">
-          <span class="wb-active-stroke-dot" id="wbActiveStrokeIndicator"></span>
-          <i class="fa-solid fa-caret-up wb-dropdown-caret"></i>
-        </button>
-        <div class="wb-popover-menu wb-stroke-popover" id="wbStrokePopover">
-          <div class="wb-stroke-group">
-            <button class="wb-stroke-btn" onclick="InfiniteWhiteboard.stepWidth(-2)" title="Decrease Pen Size (-)">
-              <i class="fa-solid fa-minus" style="font-size:0.65rem;"></i>
-            </button>
-            <button class="wb-stroke-btn" data-width="3" onclick="InfiniteWhiteboard.setWidth(3, this)" title="Fine 3px">
-              <span style="width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block;"></span>
-            </button>
-            <button class="wb-stroke-btn active" data-width="6" onclick="InfiniteWhiteboard.setWidth(6, this)" title="Medium 6px">
-              <span style="width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block;"></span>
-            </button>
-            <button class="wb-stroke-btn" data-width="12" onclick="InfiniteWhiteboard.setWidth(12, this)" title="Bold 12px">
-              <span style="width:11px; height:11px; border-radius:50%; background:currentColor; display:inline-block;"></span>
-            </button>
-            <button class="wb-stroke-btn" onclick="InfiniteWhiteboard.stepWidth(2)" title="Increase Pen Size (+)">
-              <i class="fa-solid fa-plus" style="font-size:0.65rem;"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="wb-dock-divider"></div>
-
       <!-- Image Import -->
       <button class="wb-dock-btn" id="wbToolImageUpload" onclick="InfiniteWhiteboard.triggerImageUpload()" title="Insert Image / Diagram onto Whiteboard">
         <i class="fa-solid fa-image"></i>
@@ -542,6 +509,20 @@
       </button>
       <button class="wb-dock-btn wb-btn-danger" onclick="InfiniteWhiteboard.clear()" title="Clear Whiteboard (Manual only)">
         <i class="fa-solid fa-trash-can"></i>
+      </button>
+
+      <div class="wb-dock-divider"></div>
+
+      <!-- Zoom & Export (Moved from Top to Bottom) -->
+      <button class="wb-dock-btn" onclick="InfiniteWhiteboard.zoomOut()" title="Zoom Out (Ctrl -)">
+        <i class="fa-solid fa-magnifying-glass-minus"></i>
+      </button>
+      <span class="wb-zoom-badge" id="wbZoomDisplay" onclick="InfiniteWhiteboard.resetView()" title="Click to Reset View (100%)">100%</span>
+      <button class="wb-dock-btn" onclick="InfiniteWhiteboard.zoomIn()" title="Zoom In (Ctrl +)">
+        <i class="fa-solid fa-magnifying-glass-plus"></i>
+      </button>
+      <button class="wb-dock-btn" onclick="InfiniteWhiteboard.exportPNG()" title="Export PNG Image">
+        <i class="fa-solid fa-camera"></i>
       </button>
     </div>
   </div>

@@ -1396,7 +1396,8 @@ const InfiniteWhiteboard = {
   color: '#ffffff',
   strokeWidth: 6,
   activeTool: 'pen', // 'pen', 'line', 'rect', 'circle', 'axis', 'eraser', 'select', 'hand'
-  gridMode: 'dark', // 'dark', 'light' (No square/grid background)
+  gridMode: 'dark', // 'dark', 'light'
+  backgroundPattern: 'solid', // 'solid', 'grid', 'lines'
   
   // Stored Data (Persistent across sessions / never cleared automatically)
   strokes: [],
@@ -1915,6 +1916,8 @@ const InfiniteWhiteboard = {
     this.updateColorsUI();
     this.updateActiveColorIndicator();
     this.updateActiveStrokeIndicator();
+    this.updateThemeIndicator();
+    this.updatePatternIndicator();
     this.updateStylusIndicator();
     this.updateZoomDisplay();
   },
@@ -1936,6 +1939,8 @@ const InfiniteWhiteboard = {
     this.updateColorsUI();
     this.updateActiveColorIndicator();
     this.updateActiveStrokeIndicator();
+    this.updateThemeIndicator();
+    this.updatePatternIndicator();
     this.render();
     if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
   },
@@ -2726,7 +2731,48 @@ const InfiniteWhiteboard = {
   },
 
   drawGrid(width, height) {
-    return; // Solid board, no square/grid background
+    if (this.backgroundPattern === 'solid') return;
+
+    const dpr = window.devicePixelRatio || 1;
+    this.ctx.save();
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const isLight = this.gridMode === 'light';
+    const strokeColor = isLight ? 'rgba(24, 32, 56, 0.12)' : 'rgba(255, 255, 255, 0.11)';
+
+    const baseSpacing = 40;
+    const step = baseSpacing * this.zoom;
+
+    if (step >= 12) {
+      const startX = ((this.panX % step) + step) % step;
+      const startY = ((this.panY % step) + step) % step;
+
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeStyle = strokeColor;
+      this.ctx.beginPath();
+
+      if (this.backgroundPattern === 'grid') {
+        for (let x = startX; x <= width; x += step) {
+          const px = Math.round(x) + 0.5;
+          this.ctx.moveTo(px, 0);
+          this.ctx.lineTo(px, height);
+        }
+        for (let y = startY; y <= height; y += step) {
+          const py = Math.round(y) + 0.5;
+          this.ctx.moveTo(0, py);
+          this.ctx.lineTo(width, py);
+        }
+      } else if (this.backgroundPattern === 'lines') {
+        for (let y = startY; y <= height; y += step) {
+          const py = Math.round(y) + 0.5;
+          this.ctx.moveTo(0, py);
+          this.ctx.lineTo(width, py);
+        }
+      }
+      this.ctx.stroke();
+    }
+
+    this.ctx.restore();
   },
 
   getBackgroundColor() {
@@ -2898,18 +2944,52 @@ const InfiniteWhiteboard = {
 
   cycleGrid() {
     this.gridMode = (this.gridMode === 'light') ? 'dark' : 'light';
-
-    const label = document.getElementById('wbGridLabel');
-    if (this.gridMode === 'light') {
-      if (label) label.innerText = 'Dark Board';
-    } else {
-      if (label) label.innerText = 'Light Board';
-    }
-
+    this.updateThemeIndicator();
     this.updateColorsUI();
     this.saveToStorage();
     this.render();
     if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  updateThemeIndicator() {
+    const icon = document.getElementById('wbThemeIcon');
+    const btn = document.getElementById('wbThemeToggleBtn');
+    if (icon) {
+      if (this.gridMode === 'light') {
+        icon.className = 'fa-solid fa-sun';
+        if (btn) btn.title = 'وضع السبورة: فاتح (انقر للوضع الداكن)';
+      } else {
+        icon.className = 'fa-solid fa-moon';
+        if (btn) btn.title = 'وضع السبورة: داكن (انقر للوضع الفاتح)';
+      }
+    }
+  },
+
+  cyclePattern() {
+    const patterns = ['solid', 'grid', 'lines'];
+    const nextIdx = (patterns.indexOf(this.backgroundPattern) + 1) % patterns.length;
+    this.backgroundPattern = patterns[nextIdx];
+    this.updatePatternIndicator();
+    this.saveToStorage();
+    this.render();
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  },
+
+  updatePatternIndicator() {
+    const icon = document.getElementById('wbPatternIcon');
+    const btn = document.getElementById('wbPatternToggleBtn');
+    if (icon) {
+      if (this.backgroundPattern === 'grid') {
+        icon.className = 'fa-solid fa-border-all';
+        if (btn) btn.title = 'نمط السبورة: شبكة تربيعية (انقر للتبديل)';
+      } else if (this.backgroundPattern === 'lines') {
+        icon.className = 'fa-solid fa-bars';
+        if (btn) btn.title = 'نمط السبورة: خطوط مسطرة للكتابة (انقر للتبديل)';
+      } else {
+        icon.className = 'fa-solid fa-border-none';
+        if (btn) btn.title = 'نمط السبورة: خلفية سادة (انقر للتبديل)';
+      }
+    }
   },
 
   saveToStorage() {
@@ -2917,6 +2997,7 @@ const InfiniteWhiteboard = {
       const payload = {
         version: 3,
         gridMode: this.gridMode,
+        backgroundPattern: this.backgroundPattern,
         color: this.color,
         strokeWidth: this.strokeWidth,
         panX: Math.round(this.panX * 10) / 10,
@@ -2977,11 +3058,12 @@ const InfiniteWhiteboard = {
 
       if (data.gridMode) {
         this.gridMode = data.gridMode;
-        const label = document.getElementById('wbGridLabel');
-        if (label) {
-          label.innerText = (this.gridMode === 'light') ? 'Dark Board' : 'Light Board';
-        }
       }
+      if (data.backgroundPattern) {
+        this.backgroundPattern = data.backgroundPattern;
+      }
+      this.updateThemeIndicator();
+      this.updatePatternIndicator();
       if (typeof data.panX === 'number' && typeof data.panY === 'number') {
         this.panX = data.panX;
         this.panY = data.panY;
