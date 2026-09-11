@@ -100,6 +100,7 @@ const StylusEngine = {
       isEraser: false,
       isDrawing: false,
       history: [],
+      redoStack: [],
       lastSnapshot: null,
       prevX: 0,
       prevY: 0,
@@ -168,6 +169,7 @@ const StylusEngine = {
 
     this.lastActiveCanvasId = id;
     inst.isDrawing = true;
+    inst.redoStack = [];
 
     try {
       inst.canvas.setPointerCapture(e.pointerId);
@@ -390,8 +392,26 @@ const StylusEngine = {
     const inst = this.canvases[id];
     if (!inst || !inst.history || inst.history.length === 0) return;
 
+    if (!inst.redoStack) inst.redoStack = [];
+    const currentSnapshot = inst.ctx.getImageData(0, 0, inst.canvas.width, inst.canvas.height);
+    inst.redoStack.push(currentSnapshot);
+
     const prevState = inst.history.pop();
     inst.ctx.putImageData(prevState, 0, 0);
+    this.saveCanvas(id);
+    AudioEngine.click();
+  },
+
+  redo(id) {
+    const inst = this.canvases[id];
+    if (!inst || !inst.redoStack || inst.redoStack.length === 0) return;
+
+    const currentSnapshot = inst.ctx.getImageData(0, 0, inst.canvas.width, inst.canvas.height);
+    if (!inst.history) inst.history = [];
+    inst.history.push(currentSnapshot);
+
+    const nextState = inst.redoStack.pop();
+    inst.ctx.putImageData(nextState, 0, 0);
     this.saveCanvas(id);
     AudioEngine.click();
   },
@@ -493,6 +513,79 @@ function undoCanvas(id) {
   StylusEngine.undo(id);
 }
 
+function redoCanvas(id) {
+  StylusEngine.redo(id);
+}
+
+function toggleWorkspaceShapesPopover(canvasId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const pop = document.getElementById(`ws-shapes-pop-${canvasId}`);
+  const wrap = pop?.closest('.ws-dropdown-wrap');
+  const isOpen = pop?.classList.contains('open');
+
+  document.querySelectorAll('.ws-shapes-popover.open').forEach(p => p.classList.remove('open'));
+  document.querySelectorAll('.ws-dropdown-wrap.open').forEach(w => w.classList.remove('open'));
+
+  if (!isOpen && pop) {
+    pop.classList.add('open');
+    wrap?.classList.add('open');
+  }
+  if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+}
+
+function selectWorkspaceShape(canvasId, tool, btn) {
+  const trig = document.getElementById(`ws-shapes-trig-${canvasId}`);
+  const icon = trig?.querySelector('.ws-shape-active-icon');
+  const label = trig?.querySelector('.ws-shape-active-label');
+
+  if (tool === 'line') {
+    if (icon) icon.className = 'fa-solid fa-ruler ws-shape-active-icon';
+    if (label) label.innerText = 'Line';
+  } else if (tool === 'rect') {
+    if (icon) icon.className = 'fa-regular fa-square ws-shape-active-icon';
+    if (label) label.innerText = 'Box';
+  } else if (tool === 'circle') {
+    if (icon) icon.className = 'fa-regular fa-circle ws-shape-active-icon';
+    if (label) label.innerText = 'Circle';
+  } else if (tool === 'axis') {
+    if (icon) icon.className = 'fa-solid fa-chart-line ws-shape-active-icon';
+    if (label) label.innerText = 'Axes';
+  }
+
+  setCanvasTool(canvasId, tool, trig || btn);
+
+  const pop = document.getElementById(`ws-shapes-pop-${canvasId}`);
+  const wrap = pop?.closest('.ws-dropdown-wrap');
+  pop?.classList.remove('open');
+  wrap?.classList.remove('open');
+}
+
+function selectWorkspaceMode(canvasId, mode, btn) {
+  const trig = document.getElementById(`ws-shapes-trig-${canvasId}`);
+  const icon = trig?.querySelector('.ws-shape-active-icon');
+  const label = trig?.querySelector('.ws-shape-active-label');
+
+  if (icon) icon.className = 'fa-solid fa-keyboard ws-shape-active-icon';
+  if (label) label.innerText = 'Type';
+
+  setCanvasMode(canvasId, mode, trig || btn);
+
+  const pop = document.getElementById(`ws-shapes-pop-${canvasId}`);
+  const wrap = pop?.closest('.ws-dropdown-wrap');
+  pop?.classList.remove('open');
+  wrap?.classList.remove('open');
+}
+
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('.ws-dropdown-wrap')) {
+    document.querySelectorAll('.ws-shapes-popover.open').forEach(p => p.classList.remove('open'));
+    document.querySelectorAll('.ws-dropdown-wrap.open').forEach(w => w.classList.remove('open'));
+  }
+});
+
 function toggleStylusMode(btn) {
   StylusEngine.stylusOnlyMode = !StylusEngine.stylusOnlyMode;
   FullScreenPen.stylusOnlyMode = StylusEngine.stylusOnlyMode;
@@ -516,16 +609,28 @@ function setCanvasTool(id, tool, btn) {
   inst.mode = 'draw';
   inst.isEraser = false;
 
-  const toolbar = btn.closest('.stylus-toolbar');
+  const toolbar = btn?.closest ? btn.closest('.stylus-toolbar') : document.querySelector(`#ws-${id} .stylus-toolbar`);
   if (toolbar) {
     toolbar.querySelectorAll('.tool-btn').forEach(b => {
       const txt = b.innerText.trim();
-      if (txt.includes('Pen') || txt.includes('Highlighter') || txt.includes('Line') || txt.includes('Box') || txt.includes('Circle') || txt.includes('Axes') || txt.includes('Type') || txt.includes('Eraser')) {
+      if (txt.includes('Pen') || txt.includes('Highlighter') || txt.includes('Eraser') || b.classList.contains('ws-shapes-trigger')) {
         b.classList.remove('active');
       }
     });
   }
-  btn.classList.add('active');
+
+  const shapes = ['line', 'rect', 'circle', 'axis'];
+  const trig = document.getElementById(`ws-shapes-trig-${id}`);
+  if (shapes.includes(tool)) {
+    if (trig) trig.classList.add('active');
+  } else if (tool === 'pen') {
+    const penBtn = toolbar?.querySelector('.fa-pen')?.closest('.tool-btn');
+    if (penBtn) penBtn.classList.add('active');
+  }
+
+  if (btn && btn.classList.contains('tool-btn')) {
+    btn.classList.add('active');
+  }
 
   const canvas = inst.canvas;
   const textLayer = document.getElementById(id.replace('can-', 'text-'));
@@ -915,7 +1020,7 @@ function setCanvasEraser(id, btn) {
     if (toolbar) {
       toolbar.querySelectorAll('.tool-btn').forEach(b => {
         const txt = b.innerText.trim();
-        if (txt.includes('Pen') || txt.includes('Highlighter') || txt.includes('Line') || txt.includes('Box') || txt.includes('Circle') || txt.includes('Axes') || txt.includes('Type')) {
+        if (txt.includes('Pen') || txt.includes('Highlighter') || txt.includes('Line') || txt.includes('Box') || txt.includes('Circle') || txt.includes('Axes') || txt.includes('Type') || b.classList.contains('ws-shapes-trigger')) {
           b.classList.remove('active');
         }
       });
@@ -948,6 +1053,8 @@ function setCanvasColor(id, color, dot) {
   const toolbar = dot.closest('.stylus-toolbar');
   const eraserBtn = toolbar?.querySelector('.fa-eraser')?.closest('.tool-btn');
   if (eraserBtn) eraserBtn.classList.remove('active');
+  const shapesTrig = toolbar?.querySelector('.ws-shapes-trigger');
+  if (shapesTrig) shapesTrig.classList.remove('active');
   const penBtn = toolbar?.querySelector('.fa-pen')?.closest('.tool-btn');
   if (penBtn) penBtn.classList.add('active');
 
@@ -974,13 +1081,11 @@ function toggleCanvasGrid(wrapId, btn) {
 }
 
 function clearCanvasPrompt(id) {
-  if (confirm("Clear your notes and drawings on this workspace? (You can use Undo to revert)")) {
-    StylusEngine.clearCanvas(id);
-    const textLayer = document.getElementById(id.replace('can-', 'text-'));
-    if (textLayer) {
-      textLayer.value = '';
-      localStorage.removeItem('math_text_' + id);
-    }
+  StylusEngine.clearCanvas(id);
+  const textLayer = document.getElementById(id.replace('can-', 'text-'));
+  if (textLayer) {
+    textLayer.value = '';
+    localStorage.removeItem('math_text_' + id);
   }
 }
 
@@ -2515,21 +2620,19 @@ const InfiniteWhiteboard = {
 
   clear() {
     if (this.strokes.length === 0 && this.images.length === 0) return;
-    if (confirm('هل أنت متأكد من مسح محتويات السبورة بالكامل؟\nAre you sure you want to clear all whiteboard contents?')) {
-      this.undoStack.push({
-        type: 'full_clear',
-        strokes: [...this.strokes],
-        images: [...this.images]
-      });
-      this.strokes = [];
-      this.images = [];
-      this.selectedImageId = null;
-      this.redoStack = [];
-      this.saveToStorage();
-      this.hideImageToolbar();
-      this.render();
-      if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
-    }
+    this.undoStack.push({
+      type: 'full_clear',
+      strokes: [...this.strokes],
+      images: [...this.images]
+    });
+    this.strokes = [];
+    this.images = [];
+    this.selectedImageId = null;
+    this.redoStack = [];
+    this.saveToStorage();
+    this.hideImageToolbar();
+    this.render();
+    if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
   },
 
   // Rendering Engine
@@ -3825,12 +3928,10 @@ const WorkspaceImages = {
   },
 
   remove(canvasId) {
-    if (confirm('Delete this inserted diagram from the solution area?')) {
-      delete this.data[canvasId];
-      this.save(canvasId);
-      this.renderBox(canvasId);
-      if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
-    }
+    delete this.data[canvasId];
+    this.save(canvasId);
+    this.renderBox(canvasId);
+    if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
   }
 };
 
@@ -3901,26 +4002,40 @@ function renderWorkspaceWidget(canvasId, wrapId) {
             <button class="tool-btn active" onclick="setCanvasTool('${canvasId}', 'pen', this)" title="Pen Tool">
               <i class="fa-solid fa-pen"></i> Pen
             </button>
-            <button class="tool-btn" onclick="setCanvasTool('${canvasId}', 'line', this)" title="Straight Line Tool">
-              <i class="fa-solid fa-ruler"></i> Line
-            </button>
-            <button class="tool-btn" onclick="setCanvasTool('${canvasId}', 'rect', this)" title="Box / Rectangle Tool">
-              <i class="fa-regular fa-square"></i> Box
-            </button>
-            <button class="tool-btn" onclick="setCanvasTool('${canvasId}', 'circle', this)" title="Circle Tool">
-              <i class="fa-regular fa-circle"></i> Circle
-            </button>
-            <button class="tool-btn" onclick="setCanvasTool('${canvasId}', 'axis', this)" title="Coordinate Axes (X-Y Plane)">
-              <i class="fa-solid fa-chart-line"></i> Axes
-            </button>
-            <button class="tool-btn" onclick="setCanvasMode('${canvasId}', 'text', this)" title="Type mathematical steps">
-              <i class="fa-solid fa-keyboard"></i> Type
-            </button>
+            <!-- Shapes & Geometry Dropdown -->
+            <div class="ws-dropdown-wrap">
+              <button class="tool-btn ws-shapes-trigger" id="ws-shapes-trig-${canvasId}" onclick="toggleWorkspaceShapesPopover('${canvasId}', event)" title="Shapes & Mathematical Tools">
+                <i class="fa-solid fa-shapes ws-shape-active-icon"></i>
+                <span class="ws-shape-active-label">Shapes</span>
+                <i class="fa-solid fa-caret-down ws-caret"></i>
+              </button>
+              <div class="ws-shapes-popover" id="ws-shapes-pop-${canvasId}">
+                <button class="ws-popover-item" onclick="selectWorkspaceShape('${canvasId}', 'line', this)">
+                  <i class="fa-solid fa-ruler"></i> Line
+                </button>
+                <button class="ws-popover-item" onclick="selectWorkspaceShape('${canvasId}', 'rect', this)">
+                  <i class="fa-regular fa-square"></i> Box
+                </button>
+                <button class="ws-popover-item" onclick="selectWorkspaceShape('${canvasId}', 'circle', this)">
+                  <i class="fa-regular fa-circle"></i> Circle
+                </button>
+                <button class="ws-popover-item" onclick="selectWorkspaceShape('${canvasId}', 'axis', this)">
+                  <i class="fa-solid fa-chart-line"></i> Axes
+                </button>
+                <button class="ws-popover-item" onclick="selectWorkspaceMode('${canvasId}', 'text', this)">
+                  <i class="fa-solid fa-keyboard"></i> Type
+                </button>
+              </div>
+            </div>
+
             <button class="tool-btn" onclick="setCanvasEraser('${canvasId}', this)" title="Eraser Tool">
               <i class="fa-solid fa-eraser"></i> Eraser
             </button>
             <button class="tool-btn btn-undo" onclick="undoCanvas('${canvasId}')" title="Undo last stroke">
               <i class="fa-solid fa-rotate-left"></i> Undo
+            </button>
+            <button class="tool-btn btn-redo" onclick="redoCanvas('${canvasId}')" title="Redo last stroke">
+              <i class="fa-solid fa-rotate-right"></i> Redo
             </button>
           </div>
 

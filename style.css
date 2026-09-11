@@ -1460,6 +1460,98 @@ body.student-only-mode .teacher-hub-toggle-btn {
   color: hsl(38, 98%, 45%);
 }
 
+.tool-btn.btn-redo {
+  color: var(--text-main);
+}
+.tool-btn.btn-redo:hover {
+  background: hsla(186, 95%, 48%, 0.14);
+  border-color: var(--accent-cyan);
+  color: hsl(186, 95%, 35%);
+}
+
+/* Workspace Shapes Dropdown Popover */
+.ws-dropdown-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ws-shapes-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 0.35rem;
+  display: none;
+  flex-direction: column;
+  gap: 0.25rem;
+  z-index: 100;
+  min-width: 140px;
+  animation: wsPopFadeIn 0.18s ease-out;
+}
+
+[data-theme="dark"] .ws-shapes-popover {
+  background: #182240;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes wsPopFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ws-shapes-popover.open {
+  display: flex;
+}
+
+.ws-popover-item {
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.ws-popover-item:hover {
+  background: rgba(108, 92, 231, 0.1);
+  color: var(--primary);
+}
+
+.ws-popover-item.active {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.ws-caret {
+  font-size: 0.65rem;
+  margin-left: 2px;
+  transition: transform 0.2s ease;
+}
+
+.ws-dropdown-wrap.open .ws-caret {
+  transform: rotate(180deg);
+}
+
 .tool-btn.btn-export-board {
   border-color: #00b894;
   color: #00b894;
