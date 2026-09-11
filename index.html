@@ -118,21 +118,28 @@
     <div class="lesson-switcher-inner">
       <span class="switcher-label"><i class="fa-solid fa-layer-group"></i> Active Lesson:</span>
       <div class="lesson-pills-wrap">
-        <button class="lesson-pill-btn" id="btnLessonProportion" onclick="loadLesson('proportion')">
+        <button class="lesson-pill-btn active" id="btnLessonPlaceValue" onclick="loadLesson('place_value')">
           <span class="pill-num">Unit 1 • L1</span>
+          <span>Place Value & Powers of 10</span>
+          <span class="mini-tag">Active</span>
+        </button>
+        <button class="lesson-pill-btn" id="btnLessonProportion" onclick="loadLesson('proportion')">
+          <span class="pill-num">Unit 1 • L2</span>
           <span>Proportion</span>
         </button>
         <button class="lesson-pill-btn" id="btnLessonQuadratic" onclick="loadLesson('quadratic')">
           <span class="pill-num">Unit 2 • L1</span>
           <span>Quadratic Function</span>
         </button>
-        <button class="lesson-pill-btn active" id="btnLessonSimilarity" onclick="loadLesson('similarity')">
+        <button class="lesson-pill-btn" id="btnLessonSimilarity" onclick="loadLesson('similarity')">
           <span class="pill-num">Unit 3 • L1</span>
           <span>Similarity of Polygons</span>
-          <span class="mini-tag">Active</span>
         </button>
       </div>
       <div style="margin-left:auto; display:flex; gap:0.5rem; align-items:center;">
+        <a href="lesson_place_value.json" download class="mini-json-link" title="Download Place Value JSON">
+          <i class="fa-solid fa-download"></i> PlaceValue.json
+        </a>
         <a href="lesson_proportion.json" download class="mini-json-link" title="Download Proportion JSON">
           <i class="fa-solid fa-download"></i> Proportion.json
         </a>
@@ -773,6 +780,7 @@
   </footer>
 
   <!-- Mathematics Lessons Data Modules (All Units for Mr Ahmed Master Platform) -->
+  <script src="place_value_data.js"></script>
   <script src="proportion_data.js?v=20260909_3"></script>
   <script src="quadratic_data.js?v=20260909_3"></script>
   <script src="similarity_data.js?v=20260909_3"></script>

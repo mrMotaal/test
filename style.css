@@ -1112,8 +1112,8 @@ body.student-only-mode .teacher-hub-toggle-btn {
 .step-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.85rem;
-  margin-bottom: 0.85rem;
+  gap: 1.15rem;
+  margin-bottom: 1.25rem;
 }
 .step-row:last-child {
   margin-bottom: 0;
@@ -1122,30 +1122,31 @@ body.student-only-mode .teacher-hub-toggle-btn {
 .step-num-pill {
   background: var(--primary);
   color: #ffffff;
-  font-size: 0.75rem;
+  font-size: 0.88rem;
   font-weight: 800;
-  padding: 0.2rem 0.6rem;
+  padding: 0.32rem 0.85rem;
   border-radius: var(--radius-pill);
   flex-shrink: 0;
   margin-top: 0.2rem;
 }
 
 .step-body {
-  font-size: 0.95rem;
+  font-size: 1.18rem;
   color: var(--text-main);
-  line-height: 1.5;
+  line-height: 1.8;
 }
 
 .final-answer-badge {
   display: inline-block;
   background: rgba(0, 184, 148, 0.15);
-  border: 1px solid var(--accent-mint);
+  border: 1.5px solid var(--accent-mint);
   color: var(--accent-mint);
-  padding: 0.4rem 0.9rem;
+  padding: 0.65rem 1.3rem;
   border-radius: var(--radius-pill);
   font-weight: 800;
-  font-size: 0.92rem;
-  margin-top: 0.75rem;
+  font-size: 1.15rem;
+  margin-top: 1.2rem;
+  line-height: 1.6;
 }
 
 /* ==========================================================================
@@ -1156,12 +1157,244 @@ body.student-only-mode .teacher-hub-toggle-btn {
   border: 2px solid var(--accent-amber);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-3d-md);
-  padding: 2rem;
-  margin-top: 2rem;
+  padding: 2.2rem 2.4rem;
+  margin-top: 2.8rem;
+  margin-bottom: 2.5rem;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
   user-select: none !important;
   -webkit-user-drag: none !important;
+}
+
+/* Sub-items inside question prompts for visual breathing room */
+.q-sub-item {
+  display: block;
+  margin: 0.9rem 0;
+  padding: 0.75rem 1.15rem;
+  background: rgba(108, 92, 231, 0.05);
+  border-left: 3.5px solid var(--primary);
+  border-radius: 8px;
+  line-height: 1.85;
+  font-size: 1.22rem;
+}
+
+/* Question Action Buttons: Reorder ⬆️ ⬇️, Swap ⇄, Regenerate 🔄 & Delete 🗑️ */
+.card-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.card-tool-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1.5px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.92rem;
+}
+
+.card-tool-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.card-tool-btn.move-up-btn:hover,
+.card-tool-btn.move-down-btn:hover {
+  color: #0984e3;
+  border-color: #0984e3;
+  background: rgba(9, 132, 227, 0.12);
+}
+
+.card-tool-btn.swap-btn:hover {
+  color: #6c5ce7;
+  border-color: #6c5ce7;
+  background: rgba(108, 92, 231, 0.12);
+}
+
+.card-tool-btn.regen-btn:hover {
+  color: #00b894;
+  border-color: #00b894;
+  background: rgba(0, 184, 148, 0.12);
+}
+
+.card-tool-btn.delete-btn:hover {
+  color: #d63031;
+  border-color: #d63031;
+  background: rgba(214, 48, 49, 0.12);
+}
+
+/* Card Swapped Glow / Highlight Effect */
+@keyframes cardSwapGlow {
+  0% { transform: scale(0.98); box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.45); }
+  50% { transform: scale(1.015); box-shadow: 0 0 0 8px rgba(108, 92, 231, 0.25); }
+  100% { transform: scale(1); box-shadow: none; }
+}
+.card-swapped-pulse {
+  animation: cardSwapGlow 0.55s ease-out !important;
+}
+
+/* Swap Question Modal */
+.swap-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 100000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+}
+
+.swap-modal-box {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-color);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 580px;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  animation: modalScaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.swap-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.6rem;
+  border-bottom: 1.5px solid var(--border-color);
+  background: rgba(108, 92, 231, 0.04);
+}
+
+.swap-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.swap-modal-close:hover {
+  background: rgba(214, 48, 49, 0.1);
+  color: #d63031;
+}
+
+.swap-options-list {
+  padding: 1.2rem 1.6rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.swap-target-option {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.2rem;
+  background: var(--bg-secondary, #f8f9fe);
+  border: 1.5px solid var(--border-color);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.swap-target-option:hover {
+  border-color: var(--primary);
+  background: rgba(108, 92, 231, 0.08);
+  transform: translateX(-4px);
+}
+
+.swap-target-badge {
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.swap-target-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.swap-target-icon {
+  font-size: 1.1rem;
+  color: var(--primary);
+  margin-left: auto;
+}
+
+/* Add Question to Idea Button */
+.idea-action-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 2.2rem;
+  margin-bottom: 3rem;
+}
+
+.add-question-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem 1.75rem;
+  border-radius: 14px;
+  border: 2px dashed var(--primary);
+  background: rgba(108, 92, 231, 0.08);
+  color: var(--primary);
+  font-size: 1.08rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.add-question-btn:hover {
+  background: var(--primary);
+  color: #ffffff;
+  border-style: solid;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(108, 92, 231, 0.35);
+}
+
+/* KaTeX Global Math Scaling */
+.katex {
+  font-size: 1.2em !important;
+  line-height: 1.35 !important;
+}
+.katex-display {
+  font-size: 1.26em !important;
+  margin: 1.35rem 0 !important;
 }
 
 .btn-paste-img {
@@ -1207,11 +1440,12 @@ body.student-only-mode .teacher-hub-toggle-btn {
 
 .try-it-prompt {
   font-family: var(--font-heading);
-  font-size: 1.15rem;
+  font-size: 1.34rem !important;
   font-weight: 700;
   color: var(--text-main);
-  margin-bottom: 1.25rem;
-  line-height: 1.6;
+  margin-bottom: 1.5rem !important;
+  line-height: 1.88 !important;
+  letter-spacing: -0.01em;
 }
 
 /* Precision SVG Diagram Container */

@@ -3599,18 +3599,23 @@ function randomizeMCQ(q) {
 // LESSON LOADER & CONTROLLER
 // ==========================================================================
 function loadLesson(lessonKey) {
-  currentLessonKey = lessonKey || localStorage.getItem('math_active_lesson') || 'similarity';
+  currentLessonKey = lessonKey || localStorage.getItem('math_active_lesson') || 'place_value';
   localStorage.setItem('math_active_lesson', currentLessonKey);
   AudioEngine.click();
 
   // Choose data source based on current lesson
   let data = null;
-  if (currentLessonKey === 'similarity' && typeof LESSON_SIMILARITY !== 'undefined') {
+  if (currentLessonKey === 'place_value' && typeof LESSON_PLACE_VALUE !== 'undefined') {
+    data = LESSON_PLACE_VALUE;
+  } else if (currentLessonKey === 'similarity' && typeof LESSON_SIMILARITY !== 'undefined') {
     data = LESSON_SIMILARITY;
   } else if (currentLessonKey === 'quadratic' && typeof LESSON_QUADRATIC !== 'undefined') {
     data = LESSON_QUADRATIC;
   } else if (currentLessonKey === 'proportion' && typeof LESSON_PROPORTION !== 'undefined') {
     data = LESSON_PROPORTION;
+  } else if (typeof LESSON_PLACE_VALUE !== 'undefined') {
+    data = LESSON_PLACE_VALUE;
+    currentLessonKey = 'place_value';
   } else if (typeof LESSON_SIMILARITY !== 'undefined') {
     data = LESSON_SIMILARITY;
     currentLessonKey = 'similarity';
@@ -3631,10 +3636,12 @@ function loadLesson(lessonKey) {
   }
 
   // Update Lesson Switcher Pills in Dock
+  const btnPlace = document.getElementById('btnLessonPlaceValue');
   const btnProp = document.getElementById('btnLessonProportion');
   const btnQuad = document.getElementById('btnLessonQuadratic');
   const btnSim = document.getElementById('btnLessonSimilarity');
   [
+    { btn: btnPlace, key: 'place_value' },
     { btn: btnProp, key: 'proportion' },
     { btn: btnQuad, key: 'quadratic' },
     { btn: btnSim, key: 'similarity' }
@@ -3661,7 +3668,13 @@ function loadLesson(lessonKey) {
   // Update hero 3D visuals
   const visualBox = document.querySelector('.hero-3d-visual');
   if (visualBox) {
-    if (currentLessonKey === 'proportion') {
+    if (currentLessonKey === 'place_value') {
+      visualBox.innerHTML = `
+        <span class="floating-shape s1">🔢</span>
+        <span class="floating-shape s2">🔟</span>
+        <span class="floating-shape s3">🚀</span>
+      `;
+    } else if (currentLessonKey === 'proportion') {
       visualBox.innerHTML = `
         <span class="floating-shape s1">⚖️</span>
         <span class="floating-shape s2">🍰</span>
@@ -4200,7 +4213,7 @@ function renderConceptTab(data) {
     </article>
   `).join('');
 
-  // 4. INTERACTIVE CASIO TABLE GENERATOR WIDGET (TEXTBOOK PAGE 6)
+  // 4. INTERACTIVE CASIO TABLE GENERATOR WIDGET
   const casioSimulatorHtml = `
     <div class="calc-simulator-card">
       <div class="calc-simulator-header">
@@ -4208,10 +4221,10 @@ function renderConceptTab(data) {
           <i class="fa-solid fa-microchip"></i>
           <span>Casio fx TABLE Mode Simulator</span>
         </div>
-        <span class="pill-badge" style="background:rgba(0,210,211,0.2); color:#00d2d3;">Page 6 Textbook Activity</span>
+        <span class="pill-badge" style="background:rgba(0,210,211,0.2); color:#00d2d3;">Interactive Table Activity</span>
       </div>
       <p style="font-size:0.9rem; color:#d2dae2; margin-bottom:1.2rem;">
-        As demonstrated in Page 6 of the textbook, enter the function rule and interval boundaries to generate the exact $(x, f(x))$ coordinate table:
+        Enter the function rule and interval boundaries to generate the exact $(x, f(x))$ coordinate table:
       </p>
       <div class="calc-controls-row">
         <div class="calc-control-group">
@@ -4254,6 +4267,7 @@ function renderConceptTab(data) {
     if (Array.isArray(idea.cards) && idea.cards.length > 0) {
       cardsHtml = idea.cards.map((card, cIdx) => {
         const isTryIt = card.type === 'try';
+        const cardId = card.id || `c${cIdx + 1}`;
         const canvasId = card.canvasId || `can-c-${idea.id}-${cIdx + 1}`;
         const wrapId = card.wrapId || `can-wrap-c-${idea.id}-${cIdx + 1}`;
         const solId = card.solId || `sol-c-${idea.id}-${cIdx + 1}`;
@@ -4261,15 +4275,31 @@ function renderConceptTab(data) {
         const badgeIcon = card.icon || (isTryIt ? 'fa-solid fa-pencil' : 'fa-solid fa-chalkboard-user');
         
         return `
-          <article class="try-it-card ${isTryIt ? '' : 'solved-example-card'}" style="margin-top: 1.8rem; border-color: ${card.accent || (isTryIt ? '#00b894' : '#6c5ce7')};">
+          <article class="try-it-card ${isTryIt ? '' : 'solved-example-card'}" id="card-${idea.id}-${cardId}" data-idea-id="${idea.id}" data-card-id="${cardId}" style="margin-top: 1.8rem; border-color: ${card.accent || (isTryIt ? '#00b894' : '#6c5ce7')};">
             <div class="try-it-header">
               <div class="try-it-badge" style="background: ${badgeGrad}; box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
-                <i class="${badgeIcon}"></i> ${card.tag}
+                <i class="${badgeIcon}"></i> <span class="card-badge-tag">${card.tag}</span>
               </div>
-              <span class="pill-badge" style="background: rgba(108, 92, 231, 0.12); color: var(--primary);">iPad Apple Pencil Workspace</span>
+              <div class="card-action-bar">
+                <button type="button" class="card-tool-btn move-up-btn" onclick="moveQuestionCard(this, -1)" title="تبديل السؤال مع السابق (Move Up)">
+                  <i class="fa-solid fa-arrow-up"></i>
+                </button>
+                <button type="button" class="card-tool-btn move-down-btn" onclick="moveQuestionCard(this, 1)" title="تبديل السؤال مع التالي (Move Down)">
+                  <i class="fa-solid fa-arrow-down"></i>
+                </button>
+                <button type="button" class="card-tool-btn swap-btn" onclick="openQuestionSwapModal(this)" title="تبديل هذا السؤال مع سؤال آخر (Swap Questions)">
+                  <i class="fa-solid fa-right-left"></i>
+                </button>
+                <button type="button" class="card-tool-btn regen-btn" onclick="regenerateQuestionCard('${idea.id}', '${cardId}', this)" title="🔄 توليد سؤال بديل لنفس الفكرة من أسئلة الملفات">
+                  <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                <button type="button" class="card-tool-btn delete-btn" onclick="deleteQuestionCard(this)" title="🗑️ حذف هذا السؤال">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
             </div>
             
-            <div class="try-it-prompt" style="font-size: 1.18rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.85rem; line-height: 1.65;">
+            <div class="try-it-prompt">
               ${card.q}
             </div>
 
@@ -4308,14 +4338,30 @@ function renderConceptTab(data) {
     } else {
       // Legacy fallback for proportion and quadratic
       cardsHtml = `
-        <article class="try-it-card solved-example-card">
+        <article class="try-it-card solved-example-card" id="card-${idea.id}-ex1" data-idea-id="${idea.id}" data-card-id="ex1">
           <div class="try-it-header">
             <div class="try-it-badge" style="background: linear-gradient(135deg, #6c5ce7, #8075e5); box-shadow: 0 4px 12px rgba(108, 92, 231, 0.35);">
-              <i class="fa-solid fa-chalkboard-user"></i> ${idea.ex1Tag}
+              <i class="fa-solid fa-chalkboard-user"></i> <span class="card-badge-tag">${idea.ex1Tag}</span>
             </div>
-            <span class="pill-badge" style="background: rgba(108, 92, 231, 0.12); color: var(--primary);">iPad Apple Pencil Workspace</span>
+            <div class="card-action-bar">
+              <button type="button" class="card-tool-btn move-up-btn" onclick="moveQuestionCard(this, -1)" title="تبديل السؤال مع السابق (Move Up)">
+                <i class="fa-solid fa-arrow-up"></i>
+              </button>
+              <button type="button" class="card-tool-btn move-down-btn" onclick="moveQuestionCard(this, 1)" title="تبديل السؤال مع التالي (Move Down)">
+                <i class="fa-solid fa-arrow-down"></i>
+              </button>
+              <button type="button" class="card-tool-btn swap-btn" onclick="openQuestionSwapModal(this)" title="تبديل هذا السؤال مع سؤال آخر (Swap Questions)">
+                <i class="fa-solid fa-right-left"></i>
+              </button>
+              <button type="button" class="card-tool-btn regen-btn" onclick="regenerateQuestionCard('${idea.id}', 'ex1', this)" title="🔄 توليد سؤال بديل من أسئلة الملفات">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+              <button type="button" class="card-tool-btn delete-btn" onclick="deleteQuestionCard(this)" title="🗑️ حذف السؤال">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
           </div>
-          <div class="try-it-prompt" style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.75rem;">
+          <div class="try-it-prompt">
             ${idea.ex1Q}
           </div>
           ${idea.ex1Svg ? `<div class="diagram-frame-box" style="margin-bottom: 1rem;">${idea.ex1Svg}</div>` : ''}
@@ -4341,14 +4387,30 @@ function renderConceptTab(data) {
         </article>
 
         ${idea.ex2Q ? `
-        <article class="try-it-card solved-example-card" style="border-color: #6c5ce7; margin-top: 2rem;">
+        <article class="try-it-card solved-example-card" id="card-${idea.id}-ex2" data-idea-id="${idea.id}" data-card-id="ex2" style="border-color: #6c5ce7; margin-top: 2rem;">
           <div class="try-it-header">
             <div class="try-it-badge" style="background: linear-gradient(135deg, #0984e3, #74b9ff); box-shadow: 0 4px 12px rgba(9, 132, 227, 0.35);">
-              <i class="fa-solid fa-chalkboard-user"></i> ${idea.ex2Tag}
+              <i class="fa-solid fa-chalkboard-user"></i> <span class="card-badge-tag">${idea.ex2Tag}</span>
             </div>
-            <span class="pill-badge" style="background: rgba(108, 92, 231, 0.12); color: var(--primary);">iPad Apple Pencil Workspace</span>
+            <div class="card-action-bar">
+              <button type="button" class="card-tool-btn move-up-btn" onclick="moveQuestionCard(this, -1)" title="تبديل السؤال مع السابق (Move Up)">
+                <i class="fa-solid fa-arrow-up"></i>
+              </button>
+              <button type="button" class="card-tool-btn move-down-btn" onclick="moveQuestionCard(this, 1)" title="تبديل السؤال مع التالي (Move Down)">
+                <i class="fa-solid fa-arrow-down"></i>
+              </button>
+              <button type="button" class="card-tool-btn swap-btn" onclick="openQuestionSwapModal(this)" title="تبديل هذا السؤال مع سؤال آخر (Swap Questions)">
+                <i class="fa-solid fa-right-left"></i>
+              </button>
+              <button type="button" class="card-tool-btn regen-btn" onclick="regenerateQuestionCard('${idea.id}', 'ex2', this)" title="🔄 توليد سؤال بديل من أسئلة الملفات">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+              <button type="button" class="card-tool-btn delete-btn" onclick="deleteQuestionCard(this)" title="🗑️ حذف السؤال">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
           </div>
-          <div class="try-it-prompt" style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.75rem;">
+          <div class="try-it-prompt">
             ${idea.ex2Q}
           </div>
           ${idea.ex2Svg ? `<div class="diagram-frame-box" style="margin-bottom: 1rem;">${idea.ex2Svg}</div>` : ''}
@@ -4375,14 +4437,30 @@ function renderConceptTab(data) {
         ` : ''}
 
         ${idea.tryPrompt ? `
-        <div class="try-it-card">
+        <div class="try-it-card" id="card-${idea.id}-try" data-idea-id="${idea.id}" data-card-id="try">
           <div class="try-it-header">
             <div class="try-it-badge">
-              <i class="fa-solid fa-pencil"></i> ${idea.tryBadge}
+              <i class="fa-solid fa-pencil"></i> <span class="card-badge-tag">${idea.tryBadge}</span>
             </div>
-            <span class="pill-badge" style="background: rgba(108, 92, 231, 0.12); color: var(--primary);">iPad Apple Pencil Workspace</span>
+            <div class="card-action-bar">
+              <button type="button" class="card-tool-btn move-up-btn" onclick="moveQuestionCard(this, -1)" title="تبديل السؤال مع السابق (Move Up)">
+                <i class="fa-solid fa-arrow-up"></i>
+              </button>
+              <button type="button" class="card-tool-btn move-down-btn" onclick="moveQuestionCard(this, 1)" title="تبديل السؤال مع التالي (Move Down)">
+                <i class="fa-solid fa-arrow-down"></i>
+              </button>
+              <button type="button" class="card-tool-btn swap-btn" onclick="openQuestionSwapModal(this)" title="تبديل هذا السؤال مع سؤال آخر (Swap Questions)">
+                <i class="fa-solid fa-right-left"></i>
+              </button>
+              <button type="button" class="card-tool-btn regen-btn" onclick="regenerateQuestionCard('${idea.id}', 'try', this)" title="🔄 توليد سؤال بديل من أسئلة الملفات">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+              <button type="button" class="card-tool-btn delete-btn" onclick="deleteQuestionCard(this)" title="🗑️ حذف السؤال">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
           </div>
-          <div class="try-it-prompt" style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.75rem;">
+          <div class="try-it-prompt">
             ${idea.tryPrompt}
           </div>
           ${renderWorkspaceWidget(idea.tryCanvasId, `can-wrap-try-${idea.id}`)}
@@ -4401,7 +4479,7 @@ function renderConceptTab(data) {
     }
 
     return `
-      <section class="idea-block">
+      <section class="idea-block" id="idea-block-${idea.id}">
         <div class="pedagogical-flashcard">
           <div class="flashcard-badge-3d">${idea.badge}</div>
           <div class="flashcard-content">
@@ -4410,7 +4488,15 @@ function renderConceptTab(data) {
             <p>${idea.flashcardText}</p>
           </div>
         </div>
-        ${cardsHtml}
+        <div class="idea-cards-container" id="idea-cards-${idea.id}">
+          ${cardsHtml}
+        </div>
+        <div class="idea-action-footer">
+          <button type="button" class="add-question-btn" onclick="addQuestionCardToIdea('${idea.id}')">
+            <i class="fa-solid fa-plus-circle"></i>
+            <span>Add Question to this Idea (إضافة سؤال لهذه الفكرة)</span>
+          </button>
+        </div>
       </section>
     `;
   }).join('');
@@ -4515,7 +4601,12 @@ let rawMCQList = null;
 
 function renderMCQBank(mcqList) {
   if (mcqList) rawMCQList = mcqList;
-  const source = rawMCQList || ((typeof LESSON_QUADRATIC !== 'undefined') ? LESSON_QUADRATIC.mcqs : (typeof LESSON_PROPORTION !== 'undefined' ? LESSON_PROPORTION.mcqs : []));
+  const source = rawMCQList || (
+    (typeof LESSON_PLACE_VALUE !== 'undefined') ? LESSON_PLACE_VALUE.mcqs :
+    (typeof LESSON_SIMILARITY !== 'undefined') ? LESSON_SIMILARITY.mcqs :
+    (typeof LESSON_QUADRATIC !== 'undefined') ? LESSON_QUADRATIC.mcqs :
+    (typeof LESSON_PROPORTION !== 'undefined' ? LESSON_PROPORTION.mcqs : [])
+  );
   currentMCQs = (source || []).map(randomizeMCQ);
   mcqScore = 0;
   mcqAnswered = 0;
@@ -4891,6 +4982,696 @@ function toggleSolutionDrawer(drawerId, btn) {
 }
 
 // ==========================================================================
+// 7. DYNAMIC QUESTION POOLS & REGENERATION / REORDER / SWAP ENGINE
+// (All questions extracted 100% strictly and authentically from uploaded files)
+// ==========================================================================
+const IDEA_QUESTION_POOLS = {
+  1: [
+    {
+      tag: 'Alternative Practice 1.A • Completing True Proportions',
+      q: `Complete the following to form true proportions:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> $\\frac{20}{25} = \\frac{36}{\\dots}$
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> $\\frac{48}{72} = \\frac{\\dots}{15}$
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Let the unknown denominator be $x$: $\\frac{20}{25} = \\frac{36}{x}$. Simplify $\\frac{20 \\div 5}{25 \\div 5} = \\frac{4}{5}$. By cross multiplication: $4x = 5 \\times 36 = 180 \\implies x = \\frac{180}{4} = 45$.' },
+        { num: 'Step 2: Part (b)', text: 'Let the unknown numerator be $y$: $\\frac{48}{72} = \\frac{y}{15}$. Simplify $\\frac{48 \\div 24}{72 \\div 24} = \\frac{2}{3}$. Cross-multiply: $3y = 2 \\times 15 = 30 \\implies y = \\frac{30}{3} = 10$.' }
+      ],
+      ans: '(a) Missing denominator = 45 &nbsp;|&nbsp; (b) Missing numerator = 10'
+    },
+    {
+      tag: 'Alternative Practice 1.B • Testing Quantities Proportionality',
+      q: `For each of the following, determine whether the quantities are proportional. If they are, write the proportion:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> $12, \\quad 27, \\quad 16, \\quad 18$
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> $8, \\quad 24, \\quad 6, \\quad 18$
+          </div>`,
+      steps: [
+        { num: 'Step 1: Testing (a)', text: 'Check product of extremes: $12 \\times 18 = 216$. Check product of means: $27 \\times 16 = 432$. Since $216 \\ne 432$, the quantities are <strong>NOT proportional</strong>.' },
+        { num: 'Step 2: Testing (b)', text: 'Check product of extremes: $8 \\times 18 = 144$. Check product of means: $24 \\times 6 = 144$. Since $144 = 144$, the quantities <strong>ARE proportional</strong>. Proportion: $\\frac{8}{24} = \\frac{6}{18} = \\frac{1}{3}$.' }
+      ],
+      ans: '(a) Not proportional &nbsp;|&nbsp; (b) Proportional: $\\frac{8}{24} = \\frac{6}{18}$'
+    },
+    {
+      tag: 'Alternative Practice 1.C • Fractional Pairs Proportionality Test',
+      q: `Which of the following pairs represents a proportion?
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> $\\frac{1}{3} \\quad \\text{and} \\quad \\frac{0.5}{1.5}$
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> $\\frac{5}{4} \\quad \\text{and} \\quad \\frac{7.5}{6}$
+          </div>`,
+      steps: [
+        { num: 'Step 1: Testing Pair (a)', text: 'Product of extremes $= 1 \\times 1.5 = 1.5$. Product of means $= 3 \\times 0.5 = 1.5$. Since $1.5 = 1.5$, $\\frac{1}{3} = \\frac{0.5}{1.5} \\implies$ <strong>Represents a proportion</strong>.' },
+        { num: 'Step 2: Testing Pair (b)', text: 'Product of extremes $= 5 \\times 6 = 30$. Product of means $= 4 \\times 7.5 = 30$. Since $30 = 30$, $\\frac{5}{4} = \\frac{7.5}{6} \\implies$ <strong>Represents a proportion</strong>.' }
+      ],
+      ans: 'Both pairs (a) and (b) represent valid proportions.'
+    },
+    {
+      tag: 'Alternative Practice 1.D • Cumulative Proportion Selection',
+      q: `Solve both questions from the cumulative evaluation:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> Which ratio is proportional to $\\frac{24}{36}$?<br>
+            <strong>[A]</strong> $\\frac{8}{18}$ &nbsp;&nbsp; <strong>[B]</strong> $\\frac{10}{12}$ &nbsp;&nbsp; <strong>[C]</strong> $\\frac{10}{15}$ &nbsp;&nbsp; <strong>[D]</strong> $\\frac{16}{28}$
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> Which pair of ratios is NOT proportional?<br>
+            <strong>[A]</strong> $\\frac{2}{5}, \\frac{12}{30}$ &nbsp;&nbsp; <strong>[B]</strong> $\\frac{8}{10}, \\frac{12}{15}$ &nbsp;&nbsp; <strong>[C]</strong> $\\frac{7}{8}, \\frac{35}{40}$ &nbsp;&nbsp; <strong>[D]</strong> $\\frac{3}{4}, \\frac{12}{18}$
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Reduce $\\frac{24}{36} = \\frac{2}{3}$. Test options: $\\frac{10}{15} = \\frac{2}{3}$. Thus [C] is correct.' },
+        { num: 'Step 2: Part (b)', text: 'In option [D]: $\\frac{3}{4} = 0.75$, while $\\frac{12}{18} = \\frac{2}{3} \\approx 0.67$. $3 \\times 18 = 54 \\ne 4 \\times 12 = 48$. Thus [D] is not proportional.' }
+      ],
+      ans: '(a) [C] $\\frac{10}{15}$ &nbsp;|&nbsp; (b) [D] $\\frac{3}{4}, \\frac{12}{18}$'
+    }
+  ],
+  2: [
+    {
+      tag: 'Alternative Practice 2.A • Solving Standard Proportions',
+      q: `Solve each of the following proportions for $x$:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> $\\frac{3}{4} = \\frac{x}{20}$
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> $\\frac{6}{x} = \\frac{12}{14}$
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Cross-multiplication: $4x = 3 \\times 20 = 60 \\implies x = \\frac{60}{4} = 15$.' },
+        { num: 'Step 2: Part (b)', text: 'Cross-multiplication: $12x = 6 \\times 14 = 84 \\implies x = \\frac{84}{12} = 7$.' }
+      ],
+      ans: '(a) $x = 15$ &nbsp;|&nbsp; (b) $x = 7$'
+    },
+    {
+      tag: 'Alternative Practice 2.B • Solving Algebraic Proportions',
+      q: `Solve each of the following proportions:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> $\\frac{15}{x} = \\frac{30}{12}$
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> $\\frac{16}{3x} = \\frac{8}{12}$
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Cross-multiplication: $30x = 15 \\times 12 = 180 \\implies x = \\frac{180}{30} = 6$.' },
+        { num: 'Step 2: Part (b)', text: 'Cross-multiplication: $8 \\times (3x) = 16 \\times 12 \\implies 24x = 192 \\implies x = \\frac{192}{24} = 8$.' }
+      ],
+      ans: '(a) $x = 6$ &nbsp;|&nbsp; (b) $x = 8$'
+    },
+    {
+      tag: 'Alternative Practice 2.C • Finding Missing Quantities & Binomials',
+      q: `Find the missing unknown values:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> $\\frac{12}{\\square} = \\frac{18}{12}$
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> If $\\frac{l - 3}{12} = \\frac{5}{4}$, find the value of $l$.
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Let the missing value be $m$: $18m = 12 \\times 12 = 144 \\implies m = \\frac{144}{18} = 8$.' },
+        { num: 'Step 2: Part (b)', text: 'Cross-multiply: $4(l - 3) = 12 \\times 5 = 60 \\implies l - 3 = \\frac{60}{4} = 15 \\implies l = 15 + 3 = 18$.' }
+      ],
+      ans: '(a) Missing denominator = 8 &nbsp;|&nbsp; (b) $l = 18$'
+    },
+    {
+      tag: 'Alternative Practice 2.D • Unknown Variables with Fractions',
+      q: `Solve for the unknown variables:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> If $\\frac{8}{X} = 0.5$, what is the value of $X$?
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> If $\\frac{n - 2}{3} = \\frac{3}{18}$, find the value of $n$.
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: '$\\frac{8}{X} = \\frac{1}{2} \\implies X = 8 \\times 2 = 16$.' },
+        { num: 'Step 2: Part (b)', text: 'Simplify $\\frac{3}{18} = \\frac{1}{6}$. Then $\\frac{n - 2}{3} = \\frac{1}{6} \\implies 6(n - 2) = 3 \\implies n - 2 = 0.5 \\implies n = 2.5$.' }
+      ],
+      ans: '(a) $X = 16$ &nbsp;|&nbsp; (b) $n = 2.5$'
+    }
+  ],
+  3: [
+    {
+      tag: 'Alternative Practice 3.A • Word Rates & Energy Calories',
+      q: `Solve both rate application questions:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> A person writes 150 words in 30 minutes. How many words does he write in two hours?
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> If 100 grams of chocolate provide 300 calories, find the number of calories in 30 grams of the same chocolate.
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Rate $= \\frac{150\\text{ words}}{30\\text{ min}} = 5\\text{ words/min}$. Two hours $= 120\\text{ min}$. In 120 minutes: $5 \\times 120 = 600\\text{ words}$.' },
+        { num: 'Step 2: Part (b)', text: 'Rate $= \\frac{300\\text{ calories}}{100\\text{ g}} = 3\\text{ cal/g}$. In 30 grams: $30 \\times 3 = 90\\text{ calories}$.' }
+      ],
+      ans: '(a) 600 words &nbsp;|&nbsp; (b) 90 calories'
+    },
+    {
+      tag: 'Alternative Practice 3.B • Agricultural Tractor Rate',
+      q: `A tractor cultivates 840 square meters of land in 3 hours:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> What area of land does the tractor cultivate in 5 hours if it continues at the same rate?
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> How many hours are needed for the tractor to cultivate 1,960 square meters?
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Hourly rate $= \\frac{840}{3} = 280\\text{ m}^2/\\text{hour}$. In 5 hours: $280 \\times 5 = 1,400\\text{ m}^2$.' },
+        { num: 'Step 2: Part (b)', text: 'Time needed $= \\frac{1960}{280} = 7\\text{ hours}$.' }
+      ],
+      ans: '(a) 1,400 m² &nbsp;|&nbsp; (b) 7 hours'
+    },
+    {
+      tag: 'Alternative Practice 3.C • Milk & Apple Shopping Rates',
+      q: `Solve both market shopping rate questions:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> If $\\frac{3}{4}$ liter of milk costs 24 pounds, how much would $1\\frac{3}{4}$ liters cost?
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> Omar bought 8 apples for 60 LE. How many apples of the same type can he buy for 105 LE?
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Unit price per liter $= 24 \\div \\frac{3}{4} = 24 \\times \\frac{4}{3} = 32\\text{ pounds/liter}$. Cost for $1\\frac{3}{4} = \\frac{7}{4}$ liters: $\\frac{7}{4} \\times 32 = 7 \\times 8 = 56\\text{ pounds}$.' },
+        { num: 'Step 2: Part (b)', text: 'Let number of apples be $x$: $\\frac{8}{60} = \\frac{x}{105} \\implies 60x = 8 \\times 105 = 840 \\implies x = \\frac{840}{60} = 14\\text{ apples}$.' }
+      ],
+      ans: '(a) 56 pounds &nbsp;|&nbsp; (b) 14 apples'
+    },
+    {
+      tag: 'Alternative Practice 3.D • Petrol Consumption & Moon Gravity',
+      q: `Solve both scientific rate questions:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> A car uses 5 liters of petrol to cover 40 km. How much petrol would it need to cover 128 km at the same rate?
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> Weight of a body on Earth is 90 N, on the Moon is 15 N. What is the Moon weight of another body of 60 N on Earth?
+          </div>`,
+      steps: [
+        { num: 'Step 1: Part (a)', text: 'Rate $= \\frac{5}{40} = \\frac{1}{8}\\text{ L/km}$. For 128 km: $128 \\times \\frac{1}{8} = 16\\text{ liters}$.' },
+        { num: 'Step 2: Part (b)', text: 'Gravity ratio $= \\frac{15}{90} = \\frac{1}{6}$. Moon weight of 60 N body $= 60 \\times \\frac{1}{6} = 10\\text{ Newtons}$.' }
+      ],
+      ans: '(a) 16 liters &nbsp;|&nbsp; (b) 10 Newtons'
+    }
+  ],
+  4: [
+    {
+      tag: 'Alternative Practice 4.A • Graphical Origin Test Analysis',
+      q: `Which of the relationships shown below represents a proportion? State the mathematical reasoning for each case:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> A curved graph starting from the origin $(0, 0)$ up to $(4, 40)$.
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> A straight line passing through the origin $(0, 0)$ and $(8, 8)$.
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(c)</span> A straight line crossing the vertical axis at $(0, 1)$.
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(d)</span> A straight line crossing the vertical axis at $(0, 4)$ downwards.
+          </div>`,
+      steps: [
+        { num: 'Step 1: Graph (a)', text: 'Curved path. A proportional relationship must be represented by a straight line. Thus (a) is not a proportion.' },
+        { num: 'Step 2: Graph (b)', text: 'Straight line passing directly through the origin $(0, 0)$. Thus (b) <strong>represents a valid proportion</strong>.' },
+        { num: 'Step 3: Graph (c)', text: 'Straight line, but crosses at $(0, 1) \\ne (0, 0)$. Does not represent a proportion.' },
+        { num: 'Step 4: Graph (d)', text: 'Straight line, but crosses at $(0, 4) \\ne (0, 0)$. Does not represent a proportion.' }
+      ],
+      ans: 'Graph (b) is the only relationship that represents a proportion.'
+    },
+    {
+      tag: 'Alternative Practice 4.B • Proportional Tables & Graph Verification',
+      q: `Determine which of the following tables shows a proportional relationship:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> Covered Distances: Time (seconds): [1, 2, 3, 4] &nbsp;|&nbsp; Distance (meters): [6, 12, 18, 24]
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> Price of apples in a market: Weight (kg): [1, 2, 3, 4] &nbsp;|&nbsp; Price (LE): [45, 90, 135, 180]
+          </div>`,
+      steps: [
+        { num: 'Step 1: Table (a)', text: 'Ratios: $\\frac{6}{1} = 6, \\frac{12}{2} = 6, \\frac{18}{3} = 6, \\frac{24}{4} = 6$. Ratio is constant ($6\\text{ m/s}$) and passes through $(0, 0)$. Represents a proportion.' },
+        { num: 'Step 2: Table (b)', text: 'Ratios: $\\frac{45}{1} = 45, \\frac{90}{2} = 45, \\frac{135}{3} = 45, \\frac{180}{4} = 45$. Unit price is constant ($45\\text{ LE/kg}$) and passes through $(0, 0)$. Represents a proportion.' }
+      ],
+      ans: 'Both tables (a) and (b) represent proportional relationships.'
+    },
+    {
+      tag: 'Alternative Practice 4.C • Non-Proportional Tables Reasoning',
+      q: `Explain why each of the following tables does NOT show a proportional relationship:
+          <div class="q-sub-item">
+            <span class="q-part-pill">(a)</span> Price of pies with delivery: Number of Pies: [1, 2, 3, 4] &nbsp;|&nbsp; Price (LE): [25, 45, 65, 85]
+          </div>
+          <div class="q-sub-item">
+            <span class="q-part-pill">(b)</span> Price of shampoo: Volume (mL): [100, 200, 300, 400] &nbsp;|&nbsp; Price (LE): [40, 50, 58, 70]
+          </div>`,
+      steps: [
+        { num: 'Step 1: Table (a)', text: 'Ratios: $\\frac{25}{1} = 25, \\frac{45}{2} = 22.5, \\frac{65}{3} \\approx 21.67$. Due to fixed delivery fee, graph has equation $y = 20x + 5$, which does not pass through origin $(0, 0)$.' },
+        { num: 'Step 2: Table (b)', text: 'Ratios: $\\frac{40}{100} = 0.4, \\frac{50}{200} = 0.25, \\frac{58}{300} \\approx 0.193$. The ratios are not equal $\\implies$ not a proportion.' }
+      ],
+      ans: 'Neither table shows a proportion (ratios not constant and do not pass through origin).'
+    },
+    {
+      tag: 'Alternative Practice 4.D • Typing Speed Linearity Test',
+      q: `The table shows the relationship between the number of pages Adam can type and time in hours:
+          <div class="q-sub-item">
+            Time (hours): [1, 2, 3, 4] &nbsp;&nbsp;|&nbsp;&nbsp; Number of Pages: [3, 6, 9, 21]
+          </div>
+          Determine whether the number of pages is proportional to the time in hours.`,
+      steps: [
+        { num: 'Step 1: Check Ratios', text: '$\\frac{3}{1} = 3, \\quad \\frac{6}{2} = 3, \\quad \\frac{9}{3} = 3, \\quad \\text{but: } \\frac{21}{4} = 5.25 \\ne 3$.' },
+        { num: 'Step 2: Conclusion', text: 'Because the fourth ratio is $5.25 \\ne 3$, the points do not lie on a single straight line. The relationship is <strong>NOT proportional</strong>.' }
+      ],
+      ans: 'The relationship is NOT proportional.'
+    }
+  ],
+  5: [
+    {
+      tag: 'Alternative Practice 5.A • Equilateral Triangles Perimeter Rule',
+      q: `The triangles are equilateral with side lengths 2 cm, 3 cm, and 4 cm. Does the relationship between the perimeter and the side length represent a proportion? Explain your answer.`,
+      steps: [
+        { num: 'Step 1: Calculate Perimeters', text: 'Triangle 1: $P = 3 \\times 2 = 6\\text{ cm}$.<br>Triangle 2: $P = 3 \\times 3 = 9\\text{ cm}$.<br>Triangle 3: $P = 3 \\times 4 = 12\\text{ cm}$.' },
+        { num: 'Step 2: Check Ratios', text: '$\\frac{6}{2} = 3, \\quad \\frac{9}{3} = 3, \\quad \\frac{12}{4} = 3$.' },
+        { num: 'Step 3: Verification', text: 'Ratio of perimeter to side is constant ($3$). When side length is $0$, perimeter is $0$. The graph is a straight line through origin $(0, 0)$.' }
+      ],
+      ans: 'Yes, it represents a valid proportion because $P = 3s$ (constant ratio = 3).'
+    },
+    {
+      tag: 'Alternative Practice 5.B • Collaborative Work Problem',
+      q: `A worker can paint a wall in 4 hours, and another worker can paint the same wall in 2 hours. If both workers work together to paint the same wall, how many minutes will they need to paint the wall?`,
+      steps: [
+        { num: 'Step 1: Individual Hourly Rates', text: 'Worker 1 paints $\\frac{1}{4}$ of the wall per hour. Worker 2 paints $\\frac{1}{2} = \\frac{2}{4}$ of the wall per hour.' },
+        { num: 'Step 2: Combined Rate', text: 'Combined rate $= \\frac{1}{4} + \\frac{2}{4} = \\frac{3}{4}$ of the wall per hour.' },
+        { num: 'Step 3: Total Time in Hours', text: 'Time $= 1 \\div \\frac{3}{4} = \\frac{4}{3}\\text{ hours}$.' },
+        { num: 'Step 4: Convert to Minutes', text: 'Time in minutes $= \\frac{4}{3} \\times 60 = 80\\text{ minutes}$.' }
+      ],
+      ans: 'They will need 80 minutes to paint the wall together.'
+    },
+    {
+      tag: 'Alternative Practice 5.C • Proportional Quantities Product',
+      q: `If the quantities $a, 2, 5$, and $b$ are proportional:
+          <div class="q-sub-item">
+            Find the exact numerical value of $a \\times b$.
+          </div>`,
+      steps: [
+        { num: 'Step 1: Setup Proportion', text: 'Since $a, 2, 5, b$ are proportional, write: $\\frac{a}{2} = \\frac{5}{b}$.' },
+        { num: 'Step 2: Product of Extremes = Product of Means', text: '$a \\times b = 2 \\times 5 = 10$.' }
+      ],
+      ans: '$a \\times b = 10$'
+    },
+    {
+      tag: 'Alternative Practice 5.D • Quadratic Variable Proportion',
+      q: `Solve the following proportion for $y$:
+          <div class="q-sub-item">
+            $$\\frac{8}{y} = \\frac{y}{2}$$ (where $y$ is a positive integer).
+          </div>`,
+      steps: [
+        { num: 'Step 1: Cross-Multiplication', text: '$y \\times y = 8 \\times 2 \\implies y^2 = 16$.' },
+        { num: 'Step 2: Solve for y', text: '$y = \\pm \\sqrt{16} = \\pm 4$. Since $y$ is a positive integer, $y = 4$.' }
+      ],
+      ans: '$y = 4$'
+    },
+    {
+      tag: 'Alternative Practice 5.E • Monthly Savings Proportionality',
+      q: `Saving: The table shows how much Ibrahim saves within a certain number of months. Are the amounts saved proportional to the number of months?
+          <div class="q-sub-item">
+            Amount (LE): [300, 600, 900, 1,200] &nbsp;&nbsp;|&nbsp;&nbsp; Number of Months: [2, 4, 6, 8]
+          </div>`,
+      steps: [
+        { num: 'Step 1: Calculate Monthly Rates', text: '$\\frac{300}{2} = 150, \\quad \\frac{600}{4} = 150, \\quad \\frac{900}{6} = 150, \\quad \\frac{1200}{8} = 150$.' },
+        { num: 'Step 2: Check Conclusion', text: 'All pairs have the identical constant rate of $150\\text{ LE/month}$. If months $= 0$, savings $= 0$, so the line passes through $(0, 0)$.' }
+      ],
+      ans: 'Yes, the amounts saved are directly proportional to the number of months (rate = 150 LE/month).'
+    }
+  ]
+};
+
+let ideaCardPoolIndexes = {};
+let customCardCounter = 1000;
+
+// ==========================================================================
+// QUESTION REORDER & SWAPPING FUNCTIONS
+// ==========================================================================
+function moveQuestionCard(btn, dir) {
+  if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  const card = btn.closest('.try-it-card');
+  if (!card) return;
+  const container = card.parentElement;
+  if (!container) return;
+
+  if (dir === -1) {
+    const prev = card.previousElementSibling;
+    if (prev && prev.classList.contains('try-it-card')) {
+      container.insertBefore(card, prev);
+      triggerCardSwapEffect(card, prev);
+    }
+  } else if (dir === 1) {
+    const next = card.nextElementSibling;
+    if (next && next.classList.contains('try-it-card')) {
+      container.insertBefore(next, card);
+      triggerCardSwapEffect(card, next);
+    }
+  }
+}
+
+function openQuestionSwapModal(btn) {
+  if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  const currentCard = btn.closest('.try-it-card');
+  if (!currentCard) return;
+  const container = currentCard.parentElement;
+  const allCards = Array.from(container.querySelectorAll('.try-it-card'));
+  if (allCards.length < 2) {
+    alert('يوجد سؤال واحد فقط في هذه الفكرة!');
+    return;
+  }
+
+  let modal = document.getElementById('questionSwapModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'questionSwapModal';
+    modal.className = 'swap-modal-backdrop';
+    document.body.appendChild(modal);
+  }
+
+  const currentIndex = allCards.indexOf(currentCard) + 1;
+  const currentTag = currentCard.querySelector('.card-badge-tag')?.innerText || `سؤال ${currentIndex}`;
+
+  modal.innerHTML = `
+    <div class="swap-modal-box">
+      <div class="swap-modal-header">
+        <div style="display:flex; align-items:center; gap:0.65rem;">
+          <i class="fa-solid fa-right-left" style="color:var(--primary); font-size:1.25rem;"></i>
+          <h3 style="margin:0; font-size:1.15rem; font-weight:800; color:var(--text-main);">تبديل موضع السؤال</h3>
+        </div>
+        <button type="button" class="swap-modal-close" onclick="closeQuestionSwapModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding:1rem 1.6rem 0 1.6rem;">
+        <p style="color:var(--text-secondary); margin:0; font-size:0.92rem; line-height:1.55;">
+          أنت الآن تقوم بتبديل موضع <strong>السؤال رقم ${currentIndex}</strong> (${currentTag}).<br>
+          اختر السؤال المراد التبديل معه ليتبادلا الأماكن فوراً:
+        </p>
+      </div>
+      <div class="swap-options-list">
+        ${allCards.map((c, idx) => {
+          if (c === currentCard) return '';
+          const promptText = c.querySelector('.try-it-prompt')?.innerText?.replace(/\\s+/g, ' ')?.slice(0, 95) || `Question ${idx + 1}`;
+          const tagText = c.querySelector('.card-badge-tag')?.innerText || `سؤال ${idx + 1}`;
+          return `
+            <button type="button" class="swap-target-option" onclick="executeDirectCardSwap('${currentCard.id}', '${c.id}')">
+              <div class="swap-target-badge">السؤال ${idx + 1}</div>
+              <div class="swap-target-text">
+                <strong style="color:var(--text-main); font-size:0.95rem;">${tagText}</strong>
+                <p style="margin:0.25rem 0 0 0; font-size:0.86rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${promptText}...</p>
+              </div>
+              <i class="fa-solid fa-arrow-right-arrow-left swap-target-icon"></i>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+function closeQuestionSwapModal() {
+  const modal = document.getElementById('questionSwapModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function executeDirectCardSwap(id1, id2) {
+  const card1 = document.getElementById(id1);
+  const card2 = document.getElementById(id2);
+  if (!card1 || !card2) return;
+  closeQuestionSwapModal();
+
+  const parent = card1.parentNode;
+  const sibling = card1.nextSibling === card2 ? card1 : card1.nextSibling;
+  card2.parentNode.insertBefore(card1, card2);
+  parent.insertBefore(card2, sibling);
+
+  triggerCardSwapEffect(card1, card2);
+  if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
+}
+
+function triggerCardSwapEffect(card1, card2) {
+  card1.classList.remove('card-swapped-pulse');
+  card2.classList.remove('card-swapped-pulse');
+  void card1.offsetWidth; // trigger reflow
+  void card2.offsetWidth;
+  card1.classList.add('card-swapped-pulse');
+  card2.classList.add('card-swapped-pulse');
+
+  setTimeout(() => {
+    StylusEngine.redrawAll();
+  }, 40);
+
+  setTimeout(() => {
+    card1.classList.remove('card-swapped-pulse');
+    card2.classList.remove('card-swapped-pulse');
+  }, 700);
+}
+
+// Helper to retrieve active question pool (checks lesson-specific pool first)
+function getActiveQuestionPool(ideaId) {
+  const numericId = parseInt(ideaId, 10) || ideaId;
+  let activeData = null;
+  if (currentLessonKey === 'place_value' && typeof LESSON_PLACE_VALUE !== 'undefined') activeData = LESSON_PLACE_VALUE;
+  else if (currentLessonKey === 'similarity' && typeof LESSON_SIMILARITY !== 'undefined') activeData = LESSON_SIMILARITY;
+  else if (currentLessonKey === 'quadratic' && typeof LESSON_QUADRATIC !== 'undefined') activeData = LESSON_QUADRATIC;
+  else if (typeof LESSON_PROPORTION !== 'undefined') activeData = LESSON_PROPORTION;
+
+  if (activeData && activeData.questionPools && activeData.questionPools[numericId]) {
+    return activeData.questionPools[numericId];
+  }
+  return IDEA_QUESTION_POOLS[numericId] || IDEA_QUESTION_POOLS[ideaId] || [];
+}
+
+// ==========================================================================
+// QUESTION REGENERATION & DYNAMIC ADDITION
+// ==========================================================================
+function regenerateQuestionCard(ideaId, cardId, btn) {
+  if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  const card = btn.closest('.try-it-card');
+  if (!card) return;
+
+  const numericIdeaId = parseInt(ideaId, 10) || ideaId;
+  const pool = getActiveQuestionPool(numericIdeaId);
+  if (!pool || pool.length === 0) {
+    alert('No alternative question in pool for this idea.');
+    return;
+  }
+
+  const poolKey = `${numericIdeaId}`;
+  if (typeof ideaCardPoolIndexes[poolKey] === 'undefined') {
+    ideaCardPoolIndexes[poolKey] = 0;
+  }
+  const qData = pool[ideaCardPoolIndexes[poolKey] % pool.length];
+  ideaCardPoolIndexes[poolKey]++;
+
+  // Smooth fade/swap animation
+  card.style.transition = 'opacity 0.22s ease, transform 0.22s ease';
+  card.style.opacity = '0.25';
+  card.style.transform = 'scale(0.98)';
+
+  setTimeout(() => {
+    // Update badge tag
+    const tagEl = card.querySelector('.card-badge-tag');
+    if (tagEl && qData.tag) {
+      tagEl.innerHTML = qData.tag;
+    }
+
+    // Update prompt
+    const promptEl = card.querySelector('.try-it-prompt');
+    if (promptEl && qData.q) {
+      promptEl.innerHTML = qData.q;
+    }
+
+    // Update or remove svg diagram if present
+    const existingSvg = card.querySelector('.diagram-frame-box');
+    if (qData.svg) {
+      if (existingSvg) {
+        existingSvg.innerHTML = qData.svg;
+        existingSvg.style.display = 'block';
+      } else if (promptEl) {
+        promptEl.insertAdjacentHTML('afterend', `<div class="diagram-frame-box" style="margin-bottom: 1.2rem; padding: 1.2rem; background: #ffffff; border-radius: 16px; border: 1.5px solid #eef0f7; box-shadow: inset 0 2px 8px rgba(0,0,0,0.03); overflow-x: auto;">${qData.svg}</div>`);
+      }
+    } else if (existingSvg) {
+      existingSvg.style.display = 'none';
+    }
+
+    // Update Solution Drawer
+    const solDrawer = card.querySelector('.try-it-solution-drawer');
+    if (solDrawer) {
+      if (qData.steps) {
+        solDrawer.innerHTML = `
+          <div class="solution-steps-accordion">
+            ${qData.steps.map(st => `
+              <div class="step-row">
+                <span class="step-num-pill">${st.num}</span>
+                <div class="step-body">${st.text}</div>
+              </div>
+            `).join('')}
+            ${qData.ans ? `
+              <div class="final-answer-badge">
+                <i class="fa-solid fa-circle-check"></i> ${qData.ans}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      } else if (qData.solutionHtml) {
+        solDrawer.innerHTML = `<div style="line-height:1.7; color:var(--text-main);">${qData.solutionHtml}</div>`;
+      }
+    }
+
+    // Clear the associated stylus canvas for fresh work
+    const canvas = card.querySelector('.stylus-canvas');
+    if (canvas && window.clearCanvasPrompt) {
+      clearCanvasPrompt(canvas.id);
+    }
+
+    // Trigger KaTeX re-render on this card
+    if (window.renderMathInElement) {
+      renderMathInElement(card, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ]
+      });
+    }
+
+    card.style.opacity = '1';
+    card.style.transform = 'scale(1)';
+    if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
+  }, 220);
+}
+
+function deleteQuestionCard(btn) {
+  const card = btn.closest('.try-it-card');
+  if (!card) return;
+
+  if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  card.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+  card.style.opacity = '0';
+  card.style.transform = 'scale(0.92) translateY(-10px)';
+
+  setTimeout(() => {
+    card.remove();
+  }, 300);
+}
+
+function addQuestionCardToIdea(ideaId) {
+  if (window.AudioEngine && typeof AudioEngine.click === 'function') AudioEngine.click();
+  const container = document.getElementById(`idea-cards-${ideaId}`);
+  if (!container) return;
+
+  const numericIdeaId = parseInt(ideaId, 10) || ideaId;
+  const pool = getActiveQuestionPool(numericIdeaId);
+  if (!pool || pool.length === 0) {
+    alert('No extra question in pool for this idea.');
+    return;
+  }
+
+  const poolKey = `${numericIdeaId}`;
+  if (typeof ideaCardPoolIndexes[poolKey] === 'undefined') {
+    ideaCardPoolIndexes[poolKey] = 0;
+  }
+  const qData = pool[ideaCardPoolIndexes[poolKey] % pool.length];
+  ideaCardPoolIndexes[poolKey]++;
+
+  customCardCounter++;
+  const newCardId = `add_${customCardCounter}`;
+  const canvasId = `can-c-${numericIdeaId}-${newCardId}`;
+  const wrapId = `can-wrap-c-${numericIdeaId}-${newCardId}`;
+  const solId = `sol-c-${numericIdeaId}-${newCardId}`;
+
+  const article = document.createElement('article');
+  article.className = 'try-it-card';
+  article.id = `card-${numericIdeaId}-${newCardId}`;
+  article.dataset.ideaId = numericIdeaId;
+  article.dataset.cardId = newCardId;
+  article.style.marginTop = '1.8rem';
+  article.style.borderColor = '#00b894';
+  article.style.opacity = '0';
+  article.style.transform = 'scale(0.95)';
+  article.style.transition = 'all 0.3s ease';
+
+  article.innerHTML = `
+    <div class="try-it-header">
+      <div class="try-it-badge" style="background: linear-gradient(135deg, #00b894, #55efc4); box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
+        <i class="fa-solid fa-plus-circle"></i> <span class="card-badge-tag">${qData.tag || 'Additional Practice Question'}</span>
+      </div>
+      <div class="card-action-bar">
+        <button type="button" class="card-tool-btn move-up-btn" onclick="moveQuestionCard(this, -1)" title="تبديل السؤال مع السابق (Move Up)">
+          <i class="fa-solid fa-arrow-up"></i>
+        </button>
+        <button type="button" class="card-tool-btn move-down-btn" onclick="moveQuestionCard(this, 1)" title="تبديل السؤال مع التالي (Move Down)">
+          <i class="fa-solid fa-arrow-down"></i>
+        </button>
+        <button type="button" class="card-tool-btn swap-btn" onclick="openQuestionSwapModal(this)" title="تبديل هذا السؤال مع سؤال آخر (Swap Questions)">
+          <i class="fa-solid fa-right-left"></i>
+        </button>
+        <button type="button" class="card-tool-btn regen-btn" onclick="regenerateQuestionCard('${numericIdeaId}', '${newCardId}', this)" title="🔄 توليد سؤال بديل من أسئلة الملفات">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+        <button type="button" class="card-tool-btn delete-btn" onclick="deleteQuestionCard(this)" title="🗑️ حذف السؤال">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+    </div>
+    
+    <div class="try-it-prompt">
+      ${qData.q}
+    </div>
+
+    ${qData.svg ? `<div class="diagram-frame-box" style="margin-bottom: 1.2rem; padding: 1.2rem; background: #ffffff; border-radius: 16px; border: 1.5px solid #eef0f7; box-shadow: inset 0 2px 8px rgba(0,0,0,0.03); overflow-x: auto;">${qData.svg}</div>` : ''}
+
+    <!-- Teacher / Student Workspace for this question -->
+    ${renderWorkspaceWidget(canvasId, wrapId)}
+
+    <button class="show-solution-btn" onclick="toggleSolutionDrawer('${solId}', this)">
+      <i class="fa-solid fa-eye"></i> <span>Show Model Solution</span>
+    </button>
+    <div id="${solId}" class="try-it-solution-drawer" style="display:none;">
+      ${qData.steps ? `
+        <div class="solution-steps-accordion">
+          ${qData.steps.map(st => `
+            <div class="step-row">
+              <span class="step-num-pill">${st.num}</span>
+              <div class="step-body">${st.text}</div>
+            </div>
+          `).join('')}
+          ${qData.ans ? `
+            <div class="final-answer-badge">
+              <i class="fa-solid fa-circle-check"></i> ${qData.ans}
+            </div>
+          ` : ''}
+        </div>
+      ` : `
+        <div style="line-height:1.7; color:var(--text-main);">
+          ${qData.solutionHtml}
+        </div>
+      `}
+    </div>
+  `;
+
+  container.appendChild(article);
+
+  // Initialize stylus canvas
+  setTimeout(() => {
+    StylusEngine.initCanvas(canvasId);
+    if (window.renderMathInElement) {
+      renderMathInElement(article, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ]
+      });
+    }
+    article.style.opacity = '1';
+    article.style.transform = 'scale(1)';
+    article.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (window.AudioEngine && typeof AudioEngine.success === 'function') AudioEngine.success();
+  }, 50);
+}
+
+// ==========================================================================
 // 8. LESSON IMPORTER & FILE UPLOAD ENGINE
 // ==========================================================================
 function openImportModal() {
@@ -4942,9 +5723,11 @@ function updateThemeIcon(theme) {
 
 function exportActiveLessonJson() {
   AudioEngine.click();
-  let filename = 'lesson_proportion.json';
+  let filename = 'lesson_place_value.json';
   if (currentLessonKey === 'similarity') filename = 'lesson_similarity.json';
   else if (currentLessonKey === 'quadratic') filename = 'lesson_quadratic.json';
+  else if (currentLessonKey === 'proportion') filename = 'lesson_proportion.json';
+  else if (currentLessonKey === 'place_value') filename = 'lesson_place_value.json';
   const a = document.createElement('a');
   a.href = filename;
   a.download = filename;
@@ -5073,8 +5856,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.remove('student-only-mode');
   }
 
-  // Load target lesson, or remember last active lesson, or default to similarity
-  const initialLesson = chosenLesson || localStorage.getItem('math_active_lesson') || 'similarity';
+  // Load target lesson, or remember last active lesson, or default to place_value
+  const initialLesson = chosenLesson || localStorage.getItem('math_active_lesson') || 'place_value';
   loadLesson(initialLesson);
 
   // URL Print Section Auto-Trigger (for direct export links or automated headless PDF generation)
@@ -5087,7 +5870,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update Print Header Titles
     const printLessonTitle = document.getElementById('printHeaderLessonTitle');
     const printSectionBadge = document.getElementById('printHeaderSectionBadge');
-    let activeData = (initialLesson === 'similarity') ? (typeof LESSON_SIMILARITY !== 'undefined' ? LESSON_SIMILARITY : null) :
+    let activeData = (initialLesson === 'place_value') ? (typeof LESSON_PLACE_VALUE !== 'undefined' ? LESSON_PLACE_VALUE : null) :
+                     (initialLesson === 'similarity') ? (typeof LESSON_SIMILARITY !== 'undefined' ? LESSON_SIMILARITY : null) :
                      (initialLesson === 'quadratic') ? (typeof LESSON_QUADRATIC !== 'undefined' ? LESSON_QUADRATIC : null) :
                      (typeof LESSON_PROPORTION !== 'undefined' ? LESSON_PROPORTION : null);
     if (printLessonTitle && activeData) {
@@ -5228,7 +6012,8 @@ function exportSectionToPdf(sectionKey, options = {}) {
   const printLessonTitle = document.getElementById('printHeaderLessonTitle');
   const printSectionBadge = document.getElementById('printHeaderSectionBadge');
 
-  let activeData = (currentLessonKey === 'similarity') ? LESSON_SIMILARITY :
+  let activeData = (currentLessonKey === 'place_value') ? LESSON_PLACE_VALUE :
+                   (currentLessonKey === 'similarity') ? LESSON_SIMILARITY :
                    (currentLessonKey === 'quadratic') ? LESSON_QUADRATIC : LESSON_PROPORTION;
 
   if (printLessonTitle && activeData) {
