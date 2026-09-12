@@ -4192,26 +4192,34 @@ function renderConceptTab(data) {
   `).join('');
 
   // 3. CORE FOUNDATIONS & SPECIAL CASES
-  const f = data.foundation;
-  const rulesHtml = f.rules.map(r => `
+  const foundationRules = (data.foundation && data.foundation.rules) || data.foundationRules || [];
+  const rulesHtml = foundationRules.map((r, idx) => `
     <div class="rule-pill-card">
-      <span class="rule-num">${r.num}</span>
+      <span class="rule-num">${r.num || idx + 1}</span>
       <div>
-        <h4>${r.title}</h4>
-        <p>${r.desc}</p>
+        <h4>${r.title || ''}</h4>
+        <p>${r.desc || r.summary || ''}</p>
       </div>
     </div>
   `).join('');
 
-  const casesHtml = data.specialCases.map(c => `
-    <article class="encyclo-card">
-      <h4><i class="${c.icon}" style="color:var(--primary);"></i> ${c.title}</h4>
-      <div class="encyclo-diagram">${c.diagramSvg}</div>
-      <ul class="encyclo-list">
-        ${c.items.map(it => `<li><span>•</span> ${it}</li>`).join('')}
-      </ul>
-    </article>
-  `).join('');
+  const casesHtml = (data.specialCases || []).map(c => {
+    let itemsHtml = '';
+    if (Array.isArray(c.items)) {
+      itemsHtml = c.items.map(it => `<li><span>•</span> ${it}</li>`).join('');
+    } else if (c.desc) {
+      itemsHtml = `<li><span>•</span> ${c.desc}</li>`;
+    }
+    return `
+      <article class="encyclo-card">
+        <h4><i class="${c.icon || 'fa-solid fa-lightbulb'}" style="color:var(--primary);"></i> ${c.title || ''}</h4>
+        ${c.diagramSvg ? `<div class="encyclo-diagram">${c.diagramSvg}</div>` : ''}
+        <ul class="encyclo-list">
+          ${itemsHtml}
+        </ul>
+      </article>
+    `;
+  }).join('');
 
   // 4. INTERACTIVE CASIO TABLE GENERATOR WIDGET
   const casioSimulatorHtml = `
@@ -4262,15 +4270,18 @@ function renderConceptTab(data) {
   `;
 
   // 5. INSTRUCTIONAL IDEAS (ALL WITH DIRECT ACTIVE NOTEBOOK WORKSPACES & HIDDEN MODEL SOLUTIONS)
-  const ideasHtml = data.ideas.map(idea => {
+  const ideasHtml = (data.ideas || []).map(idea => {
     let cardsHtml = '';
     if (Array.isArray(idea.cards) && idea.cards.length > 0) {
       cardsHtml = idea.cards.map((card, cIdx) => {
-        const isTryIt = card.type === 'try';
+        const isTryIt = (card.type === 'try' || card.type === 'try_it');
         const cardId = card.id || `c${cIdx + 1}`;
-        const canvasId = card.canvasId || `can-c-${idea.id}-${cIdx + 1}`;
-        const wrapId = card.wrapId || `can-wrap-c-${idea.id}-${cIdx + 1}`;
-        const solId = card.solId || `sol-c-${idea.id}-${cIdx + 1}`;
+        const canvasId = card.canvasId || `can-c-${idea.id}-${cardId}`;
+        const wrapId = card.wrapId || `can-wrap-c-${idea.id}-${cardId}`;
+        const solId = card.solId || `sol-c-${idea.id}-${cardId}`;
+        const cardTag = card.tag || card.badge || `Question ${cIdx + 1}`;
+        const cardPrompt = card.q || card.prompt || '';
+        const cardSolution = card.solutionHtml || card.solution || '';
         const badgeGrad = card.badgeGradient || (isTryIt ? 'linear-gradient(135deg, #00b894, #55efc4)' : (card.accent ? `linear-gradient(135deg, ${card.accent}, ${card.accent}dd)` : 'linear-gradient(135deg, #6c5ce7, #8075e5)'));
         const badgeIcon = card.icon || (isTryIt ? 'fa-solid fa-pencil' : 'fa-solid fa-chalkboard-user');
         
@@ -4278,7 +4289,7 @@ function renderConceptTab(data) {
           <article class="try-it-card ${isTryIt ? '' : 'solved-example-card'}" id="card-${idea.id}-${cardId}" data-idea-id="${idea.id}" data-card-id="${cardId}" style="margin-top: 1.8rem; border-color: ${card.accent || (isTryIt ? '#00b894' : '#6c5ce7')};">
             <div class="try-it-header">
               <div class="try-it-badge" style="background: ${badgeGrad}; box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
-                <i class="${badgeIcon}"></i> <span class="card-badge-tag">${card.tag}</span>
+                <i class="${badgeIcon}"></i> <span class="card-badge-tag">${cardTag}</span>
               </div>
               <div class="card-action-bar">
                 <button type="button" class="card-tool-btn move-up-btn" onclick="moveQuestionCard(this, -1)" title="تبديل السؤال مع السابق (Move Up)">
@@ -4300,7 +4311,7 @@ function renderConceptTab(data) {
             </div>
             
             <div class="try-it-prompt">
-              ${card.q}
+              ${cardPrompt}
             </div>
 
             ${card.svg ? `<div class="diagram-frame-box" style="margin-bottom: 1.2rem; padding: 1.2rem; background: #ffffff; border-radius: 16px; border: 1.5px solid #eef0f7; box-shadow: inset 0 2px 8px rgba(0,0,0,0.03); overflow-x: auto;">${card.svg}</div>` : ''}
@@ -4328,7 +4339,7 @@ function renderConceptTab(data) {
                 </div>
               ` : `
                 <div style="line-height:1.7; color:var(--text-main);">
-                  ${card.solutionHtml}
+                  ${cardSolution}
                 </div>
               `}
             </div>
@@ -4478,14 +4489,18 @@ function renderConceptTab(data) {
       `;
     }
 
+    const flashcardTitle = idea.flashcardTitle || idea.title || `Idea ${idea.id}`;
+    const flashcardText = idea.flashcardText || idea.coreRule || '';
+    const ideaBadge = idea.badge || idea.num || `💡`;
+
     return `
       <section class="idea-block" id="idea-block-${idea.id}">
         <div class="pedagogical-flashcard">
-          <div class="flashcard-badge-3d">${idea.badge}</div>
+          <div class="flashcard-badge-3d">${ideaBadge}</div>
           <div class="flashcard-content">
             <span class="pill-badge" style="background:rgba(225,112,85,0.2); color:#d63031; margin-bottom:0.4rem;">Concept Flashcard & Strategy Guide</span>
-            <h3>${idea.flashcardTitle}</h3>
-            <p>${idea.flashcardText}</p>
+            <h3>${flashcardTitle}</h3>
+            <p>${flashcardText}</p>
           </div>
         </div>
         <div class="idea-cards-container" id="idea-cards-${idea.id}">
@@ -4600,13 +4615,12 @@ let currentMCQs = [];
 let rawMCQList = null;
 
 function renderMCQBank(mcqList) {
-  if (mcqList) rawMCQList = mcqList;
-  const source = rawMCQList || (
-    (typeof LESSON_PLACE_VALUE !== 'undefined') ? LESSON_PLACE_VALUE.mcqs :
-    (typeof LESSON_SIMILARITY !== 'undefined') ? LESSON_SIMILARITY.mcqs :
-    (typeof LESSON_QUADRATIC !== 'undefined') ? LESSON_QUADRATIC.mcqs :
-    (typeof LESSON_PROPORTION !== 'undefined' ? LESSON_PROPORTION.mcqs : [])
-  );
+  if (mcqList) {
+    rawMCQList = mcqList;
+  } else {
+    rawMCQList = null;
+  }
+  const source = rawMCQList || [];
   currentMCQs = (source || []).map(randomizeMCQ);
   mcqScore = 0;
   mcqAnswered = 0;
@@ -4621,6 +4635,17 @@ function renderMCQBank(mcqList) {
   if (!container) return;
 
   container.innerHTML = '';
+  if (total === 0) {
+    container.innerHTML = `
+      <div style="padding:3rem 1.5rem; text-align:center; background:var(--bg-card); border:1px dashed var(--border-color); border-radius:16px; margin:1.5rem 0;">
+        <i class="fa-solid fa-list-check" style="font-size:2.5rem; color:var(--primary); margin-bottom:1rem; display:block;"></i>
+        <h4 style="font-family:var(--font-heading); font-size:1.2rem; font-weight:700; margin-bottom:0.5rem; color:var(--text-main);">MCQ Revision Bank Coming Soon</h4>
+        <p style="color:var(--text-muted); max-width:480px; margin:0 auto; font-size:0.95rem;">Multiple-choice questions with step-by-step proofs for this lesson are being finalized.</p>
+      </div>
+    `;
+    return;
+  }
+
   currentMCQs.forEach((q, idx) => {
     const qId = (q.id !== undefined) ? q.id : (idx + 1);
     q.id = qId;
@@ -4630,7 +4655,8 @@ function renderMCQBank(mcqList) {
     card.id = `mcq-card-${qId}`;
 
     const letters = ['A', 'B', 'C', 'D'];
-    const optionsHtml = q.options.map((opt, optIdx) => `
+    const options = q.options || [];
+    const optionsHtml = options.map((opt, optIdx) => `
       <button class="mcq-option-btn" id="mcq-opt-${qId}-${optIdx}" onclick="handleMCQSelect(${qId}, ${optIdx})">
         <span class="option-letter-badge">${letters[optIdx]}</span>
         <span>${opt}</span>
@@ -4646,7 +4672,7 @@ function renderMCQBank(mcqList) {
       </div>
       <div class="mcq-explanation-drawer" id="mcq-exp-${qId}">
         <h5><i class="fa-solid fa-graduation-cap"></i> Complete Mathematical Proof:</h5>
-        <p>${q.proof}</p>
+        <p>${q.proof || ''}</p>
       </div>
     `;
 
@@ -4664,17 +4690,14 @@ function handleMCQSelect(qId, selectedIdx) {
   const buttons = card.querySelectorAll('.mcq-option-btn');
   buttons.forEach(btn => btn.disabled = true);
 
-  const selectedBtn = document.getElementById(`mcq-opt-${qId}-${selectedIdx}`);
-  const correctBtn = document.getElementById(`mcq-opt-${qId}-${q.correct}`);
-
   if (selectedIdx === q.correct) {
-    if (selectedBtn) selectedBtn.classList.add('correct');
-    AudioEngine.success();
+    buttons[selectedIdx].classList.add('correct');
     mcqScore++;
+    AudioEngine.correct();
   } else {
-    if (selectedBtn) selectedBtn.classList.add('wrong');
-    if (correctBtn) correctBtn.classList.add('correct');
-    AudioEngine.wrong();
+    buttons[selectedIdx].classList.add('incorrect');
+    if (buttons[q.correct]) buttons[q.correct].classList.add('correct');
+    AudioEngine.incorrect();
   }
 
   mcqAnswered++;
@@ -4695,32 +4718,43 @@ let currentQuizModels = [];
 let rawQuizModels = null;
 
 function initQuizModel(modelIdx, modelsList) {
-  if (modelsList) rawQuizModels = modelsList;
-  if (rawQuizModels && rawQuizModels.length > 0) {
+  if (modelsList && modelsList.length > 0) {
+    rawQuizModels = modelsList;
     currentQuizModels = rawQuizModels.map(m => ({
       ...m,
       questions: (m.questions || []).map(randomizeMCQ)
     }));
+  } else if (!modelsList && typeof currentLessonKey !== 'undefined') {
+    rawQuizModels = [];
+    currentQuizModels = [];
   }
-  activeQuizModelIndex = modelIdx;
+  activeQuizModelIndex = modelIdx || 0;
   quizUserAnswers = {};
   quizSubmitted = false;
   quizTimerSeconds = 600;
 
   const titleEl = document.getElementById('quizActiveModelTitle');
-  if (titleEl && currentQuizModels[modelIdx]) titleEl.innerText = currentQuizModels[modelIdx].title;
+  if (titleEl && currentQuizModels[activeQuizModelIndex]) {
+    titleEl.innerText = currentQuizModels[activeQuizModelIndex].title;
+  } else if (titleEl) {
+    titleEl.innerText = 'Timed Quiz';
+  }
 
   const tabs = document.querySelectorAll('.model-tab-btn');
-  tabs.forEach((tab, i) => tab.classList.toggle('active', i === modelIdx));
+  tabs.forEach((tab, i) => tab.classList.toggle('active', i === activeQuizModelIndex));
 
   const report = document.getElementById('quizFeedbackReport');
   if (report) report.style.display = 'none';
   const submitBar = document.getElementById('submitQuizBar');
-  if (submitBar) submitBar.style.display = 'block';
+  if (submitBar) submitBar.style.display = (currentQuizModels.length > 0 ? 'block' : 'none');
 
   renderQuizQuestions();
   updateQuizProgress();
-  startQuizTimer();
+  if (currentQuizModels.length > 0) {
+    startQuizTimer();
+  } else {
+    clearInterval(quizTimerInterval);
+  }
 }
 
 function switchQuizModel(modelIdx) {
@@ -4736,6 +4770,16 @@ function renderQuizQuestions() {
   if (!container) return;
 
   const currentModel = currentQuizModels[activeQuizModelIndex];
+  if (!currentModel || !currentModel.questions || currentModel.questions.length === 0) {
+    container.innerHTML = `
+      <div style="padding:3rem 1.5rem; text-align:center; background:var(--bg-card); border:1px dashed var(--border-color); border-radius:16px; margin:1.5rem 0;">
+        <i class="fa-solid fa-clock-rotate-left" style="font-size:2.5rem; color:var(--primary); margin-bottom:1rem; display:block;"></i>
+        <h4 style="font-family:var(--font-heading); font-size:1.2rem; font-weight:700; margin-bottom:0.5rem; color:var(--text-main);">Timed Quiz Bank Coming Soon</h4>
+        <p style="color:var(--text-muted); max-width:480px; margin:0 auto; font-size:0.95rem;">Interactive 10-minute timed quiz models for this unit are being prepared according to the official curriculum specs.</p>
+      </div>
+    `;
+    return;
+  }
   container.innerHTML = '';
 
   currentModel.questions.forEach((qItem, qIdx) => {
@@ -4744,7 +4788,8 @@ function renderQuizQuestions() {
     card.id = `quiz-q-card-${qIdx}`;
 
     const letters = ['A', 'B', 'C', 'D'];
-    const optionsHtml = qItem.options.map((opt, optIdx) => `
+    const options = qItem.options || [];
+    const optionsHtml = options.map((opt, optIdx) => `
       <button class="mcq-option-btn" id="quiz-opt-${qIdx}-${optIdx}" onclick="selectQuizAnswer(${qIdx}, ${optIdx})">
         <span class="option-letter-badge">${letters[optIdx]}</span>
         <span>${opt}</span>
@@ -5829,9 +5874,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 1. Clean URL Route Detection (/similarity, /quadratic, /proportion)
+  // 1. Clean URL Route Detection (/place_value, /similarity, /quadratic, /proportion)
   const pathClean = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-  const knownLessons = ['similarity', 'quadratic', 'proportion'];
+  const knownLessons = ['place_value', 'similarity', 'quadratic', 'proportion'];
   
   // 2. URL Query Parameters Detection (?lesson=similarity&student=true)
   const urlParams = new URLSearchParams(window.location.search);
