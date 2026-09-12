@@ -4732,27 +4732,56 @@ function handleMCQSelect(qId, selectedIdx) {
 let currentQuizModels = [];
 let rawQuizModels = null;
 
+function getActiveLessonQuizModels() {
+  if (rawQuizModels && rawQuizModels.length > 0) return rawQuizModels;
+  let data = null;
+  if (currentLessonKey === 'place_value' && typeof LESSON_PLACE_VALUE !== 'undefined') data = LESSON_PLACE_VALUE;
+  else if (currentLessonKey === 'proportion' && typeof LESSON_PROPORTION !== 'undefined') data = LESSON_PROPORTION;
+  else if (currentLessonKey === 'quadratic' && typeof LESSON_QUADRATIC !== 'undefined') data = LESSON_QUADRATIC;
+  else if (currentLessonKey === 'similarity' && typeof LESSON_SIMILARITY !== 'undefined') data = LESSON_SIMILARITY;
+  return data?.quizModels || [];
+}
+
 function initQuizModel(modelIdx, modelsList) {
+  // If a new list is passed (e.g. on loading a new lesson), update raw models
   if (modelsList && modelsList.length > 0) {
     rawQuizModels = modelsList;
     currentQuizModels = rawQuizModels.map(m => ({
       ...m,
       questions: (m.questions || []).map(randomizeMCQ)
     }));
-  } else if (!modelsList && typeof currentLessonKey !== 'undefined') {
-    rawQuizModels = [];
-    currentQuizModels = [];
+  } else if (!rawQuizModels || rawQuizModels.length === 0 || !currentQuizModels || currentQuizModels.length === 0) {
+    // If not passed and current models are empty, retrieve from active lesson data
+    const fallbackModels = getActiveLessonQuizModels();
+    if (fallbackModels && fallbackModels.length > 0) {
+      rawQuizModels = fallbackModels;
+      currentQuizModels = rawQuizModels.map(m => ({
+        ...m,
+        questions: (m.questions || []).map(randomizeMCQ)
+      }));
+    }
   }
-  activeQuizModelIndex = modelIdx || 0;
+
+  activeQuizModelIndex = (typeof modelIdx === 'number') ? modelIdx : 0;
+  if (currentQuizModels.length > 0 && activeQuizModelIndex >= currentQuizModels.length) {
+    activeQuizModelIndex = 0;
+  }
+
   quizUserAnswers = {};
   quizSubmitted = false;
   quizTimerSeconds = 600;
+
+  // Reset Timer display
+  const timerText = document.getElementById('quizTimerText');
+  if (timerText) timerText.innerText = '10:00';
+  const timerBox = document.getElementById('quizTimerBox');
+  if (timerBox) timerBox.className = 'timer-pill-box';
 
   const titleEl = document.getElementById('quizActiveModelTitle');
   if (titleEl && currentQuizModels[activeQuizModelIndex]) {
     titleEl.innerText = currentQuizModels[activeQuizModelIndex].title;
   } else if (titleEl) {
-    titleEl.innerText = 'Timed Quiz';
+    titleEl.innerText = `Timed Quiz — Model #${activeQuizModelIndex + 1}`;
   }
 
   const tabs = document.querySelectorAll('.model-tab-btn');
@@ -4760,12 +4789,17 @@ function initQuizModel(modelIdx, modelsList) {
 
   const report = document.getElementById('quizFeedbackReport');
   if (report) report.style.display = 'none';
+
+  const hasQuestions = currentQuizModels[activeQuizModelIndex]?.questions?.length > 0;
   const submitBar = document.getElementById('submitQuizBar');
-  if (submitBar) submitBar.style.display = (currentQuizModels.length > 0 ? 'block' : 'none');
+  if (submitBar) submitBar.style.display = hasQuestions ? 'block' : 'none';
 
   renderQuizQuestions();
   updateQuizProgress();
-  if (currentQuizModels.length > 0) {
+
+  // Start timer ONLY if student is currently on the Quiz tab and quiz is active
+  const isQuizTabActive = document.getElementById('tab-quiz')?.classList.contains('active');
+  if (hasQuestions && isQuizTabActive) {
     startQuizTimer();
   } else {
     clearInterval(quizTimerInterval);
@@ -5021,6 +5055,17 @@ function switchTab(targetTabId) {
   document.querySelectorAll('.tab-content').forEach(panel => {
     panel.classList.toggle('active', panel.id === targetTabId);
   });
+
+  // Start or pause the quiz countdown timer based on active tab
+  if (targetTabId === 'tab-quiz') {
+    const hasQuestions = currentQuizModels[activeQuizModelIndex]?.questions?.length > 0;
+    if (hasQuestions && !quizSubmitted) {
+      startQuizTimer();
+    }
+  } else {
+    // Pause timer when student is reviewing concept or practicing MCQs
+    clearInterval(quizTimerInterval);
+  }
 
   setTimeout(() => {
     StylusEngine.redrawAll();

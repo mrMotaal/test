@@ -313,6 +313,7 @@ body.student-only-mode #exportJsonBtn,
 body.student-only-mode #studioModeBtn,
 body.student-only-mode #shareLessonBtn,
 body.student-only-mode #exportPdfBtn,
+body.student-only-mode .section-export-btn,
 body.student-only-mode .teacher-hub-toggle-btn,
 body.student-only-mode .teacher-only-link,
 body.student-only-mode .footer-teacher-link {
