@@ -306,19 +306,26 @@ body {
   box-shadow: 0 6px 0 #0056b3, 0 8px 20px rgba(108, 92, 231, 0.45);
 }
 
-/* Student Mode: Hide lesson switcher bar and teacher tools for complete student focus */
+/* Student Mode: Hide lesson switcher bar, teacher tools, PDF export, and return toggle for 100% focused student isolation */
 body.student-only-mode #lessonSwitcherBar,
 body.student-only-mode #importLessonBtn,
 body.student-only-mode #exportJsonBtn,
 body.student-only-mode #studioModeBtn,
-body.student-only-mode #shareLessonBtn {
+body.student-only-mode #shareLessonBtn,
+body.student-only-mode #exportPdfBtn,
+body.student-only-mode .teacher-hub-toggle-btn,
+body.student-only-mode .teacher-only-link,
+body.student-only-mode .footer-teacher-link {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 body.student-only-mode .brand-sub .pill-badge {
   background: rgba(0, 184, 148, 0.15) !important;
   color: #00b894 !important;
   border: 1px solid rgba(0, 184, 148, 0.3) !important;
+  font-weight: 700 !important;
 }
 
 .teacher-hub-toggle-btn {
@@ -342,9 +349,6 @@ body.student-only-mode .brand-sub .pill-badge {
   color: var(--primary);
   border-color: var(--primary);
   background: #ffffff;
-}
-body.student-only-mode .teacher-hub-toggle-btn {
-  display: inline-flex !important;
 }
 
 .icon-btn-3d {

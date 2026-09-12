@@ -2,6 +2,10 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/place_value",
+      "destination": "/index.html?lesson=place_value&student=true"
+    },
+    {
       "source": "/similarity",
       "destination": "/index.html?lesson=similarity&student=true"
     },

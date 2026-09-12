@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="Interactive Mathematics Platform: Similarity of Polygons by Mr Ahmed Abd El-Motaal. Concept, Resizable Stylus Workspaces, MCQ Bank & Timed Quizzes.">
   <meta name="author" content="Mr Ahmed Abd El-Motaal">
-  <title>Similarity of Polygons — Mr Ahmed Abd El-Motaal</title>
+  <title>MathQuest Pro • Mr Ahmed Abd El-Motaal</title>
 
   <!-- KaTeX for High-Resolution Mathematical Typography -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
@@ -670,31 +670,55 @@
        SHARE LESSON MODAL (DIRECT STUDENT LINK & QR CODE GENERATOR)
        ========================================================================= -->
   <div class="modal-overlay" id="shareLessonModal">
-    <div class="modal-box" style="max-width: 580px; text-align: center;">
+    <div class="modal-box" style="max-width: 600px; text-align: center;">
       <button class="modal-close-btn" onclick="closeShareModal()">&times;</button>
       <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🚀</div>
-      <h3 style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; margin-bottom: 0.3rem;">Share Lesson With Students</h3>
-      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.35rem;">
-        This direct link isolates the active lesson for your students, hiding switcher navigation and teacher controls for distraction-free learning on iPads and mobile devices.
+      <h3 style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; margin-bottom: 0.3rem;">مشاركة رابط الدرس للطلاب</h3>
+      <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.15rem; line-height: 1.5;">
+        هذا الرابط يعرض <strong>هذا الدرس فقط</strong> للطالب، ويخفي شريط التنقل وأدوات المعلم وأي دروس أخرى تماماً للتركيز التام.
       </p>
+
+      <!-- Lesson Quick Selector Inside Modal -->
+      <div style="display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.25rem;">
+        <button class="lesson-pill-btn share-lesson-pill active" data-lesson="place_value" onclick="updateShareModalForLesson('place_value')">
+          <span class="pill-num">U1•L1</span> <span>Place Value</span>
+        </button>
+        <button class="lesson-pill-btn share-lesson-pill" data-lesson="proportion" onclick="updateShareModalForLesson('proportion')">
+          <span class="pill-num">U1•L2</span> <span>Proportion</span>
+        </button>
+        <button class="lesson-pill-btn share-lesson-pill" data-lesson="quadratic" onclick="updateShareModalForLesson('quadratic')">
+          <span class="pill-num">U2•L1</span> <span>Quadratic</span>
+        </button>
+        <button class="lesson-pill-btn share-lesson-pill" data-lesson="similarity" onclick="updateShareModalForLesson('similarity')">
+          <span class="pill-num">U3•L1</span> <span>Similarity</span>
+        </button>
+      </div>
 
       <!-- Direct Share Link Box -->
       <div style="background: var(--bg-surface); padding: 1.15rem; border-radius: var(--radius-md); border: 1.5px solid var(--border-light); margin-bottom: 1.25rem; text-align: left;">
-        <label style="display: block; font-weight: 700; font-size: 0.82rem; margin-bottom: 0.45rem; color: var(--text-main);">
-          <i class="fa-solid fa-link" style="color: var(--primary);"></i> Student Direct Link:
-        </label>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <label style="font-weight: 700; font-size: 0.82rem; color: var(--text-main); margin: 0;">
+            <i class="fa-solid fa-link" style="color: var(--primary);"></i> رابط الطالب المباشر (Direct Student Link):
+          </label>
+          <span id="shareLessonNameBadge" class="pill-badge" style="background: rgba(108, 92, 231, 0.12); color: var(--primary); font-size: 0.75rem; font-weight: 700;">
+            Place Value
+          </span>
+        </div>
         <div style="display: flex; gap: 0.5rem;">
-          <input type="text" id="shareDirectLinkInput" readonly style="flex: 1; padding: 0.6rem 0.85rem; border-radius: var(--radius-pill); border: 1px solid var(--border-light); background: var(--bg-card-3d); color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" value="">
+          <input type="text" id="shareDirectLinkInput" readonly style="flex: 1; padding: 0.6rem 0.85rem; border-radius: var(--radius-pill); border: 1px solid var(--border-light); background: var(--bg-card-3d); color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;" value="">
           <button class="btn-3d btn-primary-3d" onclick="copyShareLink()" id="btnCopyShareLink" style="padding: 0.6rem 1.15rem; white-space: nowrap;">
-            <i class="fa-solid fa-copy"></i> Copy Link
+            <i class="fa-solid fa-copy"></i> نسخ الرابط
           </button>
+          <a id="btnTestShareLink" href="javascript:void(0)" onclick="window.open(document.getElementById('shareDirectLinkInput').value, '_blank')" class="icon-btn-3d" title="فتح الرابط في نافذة جديدة للتجربة" style="flex-shrink: 0; text-decoration: none;">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
         </div>
       </div>
 
       <!-- Live QR Code Section -->
-      <div style="background: var(--bg-surface); padding: 1.15rem; border-radius: var(--radius-md); border: 1px dashed var(--border-light); display: inline-flex; flex-direction: column; align-items: center; gap: 0.65rem; margin-bottom: 1.35rem;">
+      <div style="background: var(--bg-surface); padding: 1.15rem; border-radius: var(--radius-md); border: 1px dashed var(--border-light); display: inline-flex; flex-direction: column; align-items: center; gap: 0.65rem; margin-bottom: 1.15rem;">
         <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-main);">
-          <i class="fa-solid fa-qrcode" style="color: var(--primary);"></i> Scan QR Code with iPad/Phone camera:
+          <i class="fa-solid fa-qrcode" style="color: var(--primary);"></i> رمز QR لمسحه بكاميرا الهاتف أو الآيباد:
         </span>
         <div style="background: #ffffff; padding: 8px; border-radius: 12px; box-shadow: var(--shadow-sm); min-width: 150px; min-height: 150px; display: flex; align-items: center; justify-content: center;">
           <img id="shareQrImg" src="" alt="Lesson QR Code" style="width: 150px; height: 150px; display: block; border-radius: 8px;">
@@ -702,10 +726,10 @@
       </div>
 
       <!-- Quick Tips for Online Sharing -->
-      <div style="text-align: left; background: rgba(108, 92, 231, 0.05); border-radius: var(--radius-md); padding: 0.9rem 1.1rem; border: 1px solid rgba(108, 92, 231, 0.15); font-size: 0.82rem; line-height: 1.6; color: var(--text-main);">
-        <strong style="color: var(--primary); display: block; margin-bottom: 0.3rem;"><i class="fa-solid fa-lightbulb"></i> How to share with students?</strong>
-        • <strong>Online Access (Recommended):</strong> Deploy to Vercel, Netlify, or GitHub Pages for a permanent URL.<br>
-        • <strong>Direct Clean URLs:</strong> Share <code>/?lesson=similarity</code>, <code>/?lesson=quadratic</code>, or <code>/?lesson=proportion</code> directly.
+      <div style="text-align: right; direction: rtl; background: rgba(0, 184, 148, 0.08); border-radius: var(--radius-md); padding: 0.85rem 1.1rem; border: 1px solid rgba(0, 184, 148, 0.25); font-size: 0.82rem; line-height: 1.6; color: var(--text-main);">
+        <strong style="color: #00b894; display: block; margin-bottom: 0.2rem;"><i class="fa-solid fa-shield-halved"></i> وضع الطالب الآمن:</strong>
+        • الرابط يعمل مباشرة على GitHub Pages بدون أي خطأ 404.<br>
+        • يتم عزل الدرس المختار فقط ولا تظهر أي دروس أخرى للطالب على الإطلاق.
       </div>
     </div>
   </div>
@@ -761,7 +785,7 @@
           <li><a href="#tab-concept" onclick="switchTab('tab-concept')"><i class="fa-solid fa-angle-right"></i> 1. Concept & Practice</a></li>
           <li><a href="#tab-mcq" onclick="switchTab('tab-mcq')"><i class="fa-solid fa-angle-right"></i> 2. MCQ Revision Bank (10 Qs)</a></li>
           <li><a href="#tab-quiz" onclick="switchTab('tab-quiz')"><i class="fa-solid fa-angle-right"></i> 3. Timed Quiz - 10 Marks (3 Models)</a></li>
-          <li><a href="javascript:void(0)" onclick="openImportModal()"><i class="fa-solid fa-cloud-arrow-up"></i> Import New PDF / Image Lesson</a></li>
+          <li class="teacher-only-link"><a href="javascript:void(0)" onclick="openImportModal()"><i class="fa-solid fa-cloud-arrow-up"></i> Import New PDF / Image Lesson</a></li>
         </ul>
       </div>
     </div>
@@ -772,7 +796,7 @@
       </div>
       <div style="display: flex; align-items: center; gap: 1rem;">
         <span>Built with High-Performance Vanilla HTML5, CSS3 & Stylus Canvas Engine.</span>
-        <button class="teacher-hub-toggle-btn" onclick="exitStudentMode()" title="Return to Teacher Master Platform">
+        <button class="teacher-hub-toggle-btn teacher-only-link" onclick="exitStudentMode()" title="Return to Teacher Master Platform">
           <i class="fa-solid fa-chalkboard-user"></i> Teacher Hub Mode
         </button>
       </div>

@@ -3599,8 +3599,14 @@ function randomizeMCQ(q) {
 // LESSON LOADER & CONTROLLER
 // ==========================================================================
 function loadLesson(lessonKey) {
+  // If in student mode, permanently lock to the student's lesson so no other lessons can be displayed
+  if (window.isStudentLocked && window.lockedLessonKey) {
+    lessonKey = window.lockedLessonKey;
+  }
   currentLessonKey = lessonKey || localStorage.getItem('math_active_lesson') || 'place_value';
-  localStorage.setItem('math_active_lesson', currentLessonKey);
+  if (!window.isStudentLocked) {
+    localStorage.setItem('math_active_lesson', currentLessonKey);
+  }
   AudioEngine.click();
 
   // Choose data source based on current lesson
@@ -3629,10 +3635,19 @@ function loadLesson(lessonKey) {
 
   if (!data) return;
 
+  // Dynamically update document title to show ONLY this lesson
+  if (data.title) {
+    document.title = `${data.title} • Mr Ahmed Abd El-Motaal`;
+  }
+
   // Update Header Stage
   const headerStage = document.getElementById('headerStageBadge');
-  if (headerStage && data.stageBadge) {
-    headerStage.innerHTML = data.stageBadge;
+  if (headerStage) {
+    if (window.isStudentLocked) {
+      headerStage.innerHTML = `<i class="fa-solid fa-graduation-cap"></i> Student Mode • ${data.title}`;
+    } else if (data.stageBadge) {
+      headerStage.innerHTML = data.stageBadge;
+    }
   }
 
   // Update Lesson Switcher Pills in Dock
@@ -5784,16 +5799,42 @@ function exportActiveLessonJson() {
 // ==========================================================================
 // SHARE LESSON MODAL & STUDENT LINK CONTROLLER
 // ==========================================================================
-function openShareModal() {
+function getStudentLessonUrl(lessonKey) {
+  const targetKey = lessonKey || currentLessonKey || 'place_value';
+  const loc = window.location;
+
+  // If opened directly from file system (file://)
+  if (loc.protocol === 'file:') {
+    const fileBase = loc.href.split('?')[0].split('#')[0];
+    return `${fileBase}?lesson=${encodeURIComponent(targetKey)}&student=true`;
+  }
+
+  // Preserve repository folder path on GitHub Pages (e.g. /Similarity-of-Polygons/ or /)
+  let basePath = loc.pathname;
+  basePath = basePath.replace(/\/[^/]+\.html$/i, '');
+  basePath = basePath.replace(/\/(place_value|similarity|quadratic|proportion)\/?$/i, '');
+  if (!basePath.endsWith('/')) {
+    basePath += '/';
+  }
+
+  // Universal parameter-based URL: 100% supported on GitHub Pages, Vercel, Netlify, and localhost
+  return `${loc.origin}${basePath}?lesson=${encodeURIComponent(targetKey)}&student=true`;
+}
+
+function openShareModal(targetLessonKey) {
   AudioEngine.click();
   const modal = document.getElementById('shareLessonModal');
   if (!modal) return;
 
-  const currentLesson = currentLessonKey || 'similarity';
-  const origin = window.location.origin;
-  
-  // Clean, professional SPA student link (e.g. https://.../quadratic or https://.../similarity)
-  const studentUrl = `${origin}/${currentLesson}`;
+  const currentLesson = targetLessonKey || currentLessonKey || 'place_value';
+  updateShareModalForLesson(currentLesson);
+
+  modal.classList.add('active');
+}
+
+function updateShareModalForLesson(lessonKey) {
+  const currentLesson = lessonKey || currentLessonKey || 'place_value';
+  const studentUrl = getStudentLessonUrl(currentLesson);
   
   const shareInput = document.getElementById('shareDirectLinkInput');
   if (shareInput) {
@@ -5805,7 +5846,21 @@ function openShareModal() {
     qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(studentUrl)}`;
   }
 
-  modal.classList.add('active');
+  // Update share modal badge & active selection pills
+  const badge = document.getElementById('shareLessonNameBadge');
+  if (badge) {
+    const names = {
+      'place_value': 'Place Value & Powers of 10',
+      'proportion': 'Proportion',
+      'quadratic': 'Quadratic Function',
+      'similarity': 'Similarity of Polygons'
+    };
+    badge.textContent = names[currentLesson] || currentLesson;
+  }
+
+  document.querySelectorAll('.share-lesson-pill').forEach(pill => {
+    pill.classList.toggle('active', pill.getAttribute('data-lesson') === currentLesson);
+  });
 }
 
 function closeShareModal() {
@@ -5823,7 +5878,7 @@ function copyShareLink() {
     const copyBtn = document.getElementById('btnCopyShareLink');
     if (copyBtn) {
       const origHtml = copyBtn.innerHTML;
-      copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+      copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> تم النسخ بنجاح!';
       copyBtn.style.background = '#00b894';
       setTimeout(() => {
         copyBtn.innerHTML = origHtml;
@@ -5834,9 +5889,15 @@ function copyShareLink() {
 }
 
 function exitStudentMode() {
+  if (window.isStudentLocked) {
+    // If student mode was entered via student link, prevent exiting
+    return;
+  }
   document.body.classList.remove('student-only-mode');
-  window.history.pushState({}, '', '/');
-  loadLesson(currentLessonKey || 'similarity');
+  window.isStudentLocked = false;
+  window.lockedLessonKey = null;
+  window.history.pushState({}, '', window.location.pathname);
+  loadLesson(currentLessonKey || 'place_value');
 }
 
 // ==========================================================================
@@ -5875,34 +5936,46 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 1. Clean URL Route Detection (/place_value, /similarity, /quadratic, /proportion)
-  const pathClean = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+  // Handles repository subpaths (/Similarity-of-Polygons/place_value) and root paths
+  const pathSegments = window.location.pathname.toLowerCase().split('/').filter(Boolean);
+  const lastPathSegment = pathSegments[pathSegments.length - 1] || '';
   const knownLessons = ['place_value', 'similarity', 'quadratic', 'proportion'];
   
-  // 2. URL Query Parameters Detection (?lesson=similarity&student=true)
+  // 2. URL Query Parameters Detection (?lesson=place_value&student=true)
   const urlParams = new URLSearchParams(window.location.search);
   const paramLesson = urlParams.get('lesson');
+  const paramStudent = urlParams.get('student');
+  const paramTeacher = urlParams.get('teacher');
 
   let chosenLesson = null;
   let isStudent = false;
 
-  if (knownLessons.includes(pathClean)) {
-    chosenLesson = pathClean;
+  if (knownLessons.includes(lastPathSegment)) {
+    chosenLesson = lastPathSegment;
     isStudent = true; // Clean routes are dedicated student URLs
   } else if (paramLesson && knownLessons.includes(paramLesson.toLowerCase())) {
     chosenLesson = paramLesson.toLowerCase();
     isStudent = true; // Any link with ?lesson= is automatically student mode
-  } else if (urlParams.get('student') === 'true' || urlParams.get('only') === 'true') {
-    isStudent = true;
   }
 
-  if (isStudent) {
+  if (paramStudent === 'true' || urlParams.get('only') === 'true') {
+    isStudent = true;
+  } else if (paramTeacher === 'true') {
+    isStudent = false; // Teacher override for testing
+  }
+
+  if (isStudent && chosenLesson) {
     document.body.classList.add('student-only-mode');
+    window.isStudentLocked = true;
+    window.lockedLessonKey = chosenLesson;
   } else {
     document.body.classList.remove('student-only-mode');
+    window.isStudentLocked = false;
+    window.lockedLessonKey = null;
   }
 
   // Load target lesson, or remember last active lesson, or default to place_value
-  const initialLesson = chosenLesson || localStorage.getItem('math_active_lesson') || 'place_value';
+  const initialLesson = chosenLesson || (!isStudent ? localStorage.getItem('math_active_lesson') : null) || 'place_value';
   loadLesson(initialLesson);
 
   // URL Print Section Auto-Trigger (for direct export links or automated headless PDF generation)
